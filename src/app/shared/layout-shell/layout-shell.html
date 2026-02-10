@@ -1,0 +1,22 @@
+<div class="layout-shell" [class.sidebar-collapsed]="sidebarCollapsed">
+  <!-- Sidebar -->
+  <app-sidebar
+    [collapsed]="sidebarCollapsed"
+    (collapsedChange)="onSidebarCollapsedChange($event)"
+    (logoutClick)="onLogout()"
+  />
+
+  <!-- Header -->
+  <app-header
+    [sidebarCollapsed]="sidebarCollapsed"
+    (logoutClick)="onLogout()"
+    (searchChange)="onSearchChange($event)"
+  />
+
+  <!-- Main Content Area -->
+  <main class="main-content" [class.sidebar-collapsed]="sidebarCollapsed">
+    <div class="content-wrapper">
+      <router-outlet />
+    </div>
+  </main>
+</div>

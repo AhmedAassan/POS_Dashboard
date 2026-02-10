@@ -1,0 +1,97 @@
+<header class="header" [class.sidebar-collapsed]="sidebarCollapsed">
+  <div class="header-content">
+    <!-- Left Section: Company Name -->
+    <div class="header-left">
+      <h1 class="company-name">{{ companyName() }}</h1>
+    </div>
+
+    <!-- Center Section: Search -->
+    <div class="header-center">
+      <p-iconfield class="search-field">
+        <p-inputicon styleClass="pi pi-search" />
+        <input
+          type="text"
+          pInputText
+          [(ngModel)]="searchQuery"
+          [placeholder]="searchPlaceholder()"
+          class="search-input"
+          (keyup.enter)="onSearch()"
+          (input)="onSearchInput()"
+        />
+        @if (searchQuery) {
+          <p-inputicon 
+            styleClass="pi pi-times clear-icon" 
+            (click)="clearSearch()"
+          />
+        }
+      </p-iconfield>
+    </div>
+
+    <!-- Right Section: User Info & Actions -->
+    <div class="header-right">
+      <!-- Dark Mode Toggle -->
+      <button
+        type="button"
+        pButton
+        [icon]="isDarkMode() ? 'pi pi-sun' : 'pi pi-moon'"
+        class="action-btn"
+        [rounded]="true"
+        [text]="true"
+        (click)="onDarkModeToggle()"
+        [pTooltip]="darkModeTooltip()"
+        tooltipPosition="bottom"
+      ></button>
+
+      <!-- RTL Toggle -->
+      <button
+        type="button"
+        pButton
+        [icon]="isRtl() ? 'pi pi-align-left' : 'pi pi-align-right'"
+        class="action-btn"
+        [rounded]="true"
+        [text]="true"
+        (click)="onRtlToggle()"
+        [pTooltip]="directionTooltip()"
+        tooltipPosition="bottom"
+      ></button>
+
+      <!-- User Info -->
+      <div class="user-info">
+        @if (userAvatar()) {
+          <p-avatar
+            [image]="userAvatar()!"
+            styleClass="user-avatar"
+            shape="circle"
+            size="normal"
+          />
+        } @else {
+          <p-avatar
+            [label]="userInitial()"
+            styleClass="user-avatar"
+            shape="circle"
+            size="normal"
+          />
+        }
+        <div class="user-details">
+          <span class="user-name">{{ userName() }}</span>
+          @if (user()?.email) {
+            <span class="user-email">{{ user()!.email }}</span>
+          }
+        </div>
+      </div>
+
+      <!-- Logout Button -->
+      <button
+        type="button"
+        pButton
+        icon="pi pi-sign-out"
+        class="action-btn logout-btn"
+        [rounded]="true"
+        [text]="true"
+        (click)="onLogout()"
+        [pTooltip]="logoutTooltip()"
+        tooltipPosition="bottom"
+      ></button>
+    </div>
+  </div>
+</header>

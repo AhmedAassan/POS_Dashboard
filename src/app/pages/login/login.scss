@@ -1,0 +1,179 @@
+@use '../../../styles/tokens' as *;
+
+.login-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: $spacing-md;
+  background: linear-gradient(135deg, var(--app-primary) 0%, var(--app-primary-dark) 100%);
+  position: relative;
+}
+
+// Theme/Direction actions
+.login-actions {
+  position: absolute;
+  top: $spacing-md;
+  right: $spacing-md;
+  display: flex;
+  gap: $spacing-xs;
+  z-index: 10;
+
+  .action-btn {
+    background-color: rgba(255, 255, 255, 0.2) !important;
+    color: $color-white !important;
+    backdrop-filter: blur(4px);
+
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.3) !important;
+    }
+  }
+}
+
+:host-context([dir='rtl']) {
+  .login-actions {
+    right: auto;
+    left: $spacing-md;
+  }
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+}
+
+:host ::ng-deep .p-card {
+  border-radius: $radius-lg;
+  box-shadow: $shadow-lg;
+  overflow: hidden;
+}
+
+:host ::ng-deep .p-card-body {
+  padding: $spacing-xl;
+}
+
+.login-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: $spacing-xl $spacing-lg $spacing-lg;
+  background: var(--app-surface);
+  text-align: center;
+}
+
+.login-icon {
+  font-size: 3rem;
+  color: var(--app-primary);
+  margin-bottom: $spacing-md;
+}
+
+.login-title {
+  font-size: $font-size-2xl;
+  font-weight: 700;
+  color: var(--app-text);
+  margin: 0 0 $spacing-xs;
+}
+
+.login-subtitle {
+  font-size: $font-size-base;
+  color: var(--app-text);
+  margin: 0;
+  opacity: 0.7;
+}
+
+// Form styles
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-lg;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+
+  :host ::ng-deep .p-inputtext,
+  :host ::ng-deep .p-password-input {
+    width: 100%;
+  }
+}
+
+.error-text {
+  color: #ef4444;
+  font-size: $font-size-sm;
+}
+
+:host ::ng-deep .error-message {
+  width: 100%;
+
+  .p-message {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+.demo-credentials {
+  display: flex;
+  justify-content: center;
+  margin-top: -$spacing-sm;
+
+  .demo-btn {
+    font-size: $font-size-sm;
+    opacity: 0.8;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+.submit-btn {
+  margin-top: $spacing-sm;
+
+  :host ::ng-deep .p-button {
+    width: 100%;
+    justify-content: center;
+    padding: $spacing-md;
+    font-size: $font-size-base;
+    font-weight: 600;
+  }
+}
+
+// Password field full width
+:host ::ng-deep {
+  .p-password {
+    width: 100%;
+  }
+
+  .p-floatlabel {
+    width: 100%;
+
+    .p-password {
+      width: 100%;
+    }
+
+    .p-inputtext {
+      width: 100%;
+    }
+  }
+}
+
+// Validation styling
+:host ::ng-deep {
+  .p-inputtext.ng-invalid.ng-dirty,
+  .p-password-input.ng-invalid.ng-dirty {
+    border-color: #ef4444;
+  }
+}
+
+// RTL Support
+:host-context([dir='rtl']) {
+  .login-form {
+    text-align: right;
+  }
+
+  .error-text {
+    text-align: right;
+  }
+}

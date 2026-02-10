@@ -1,0 +1,83 @@
+@use '../../../styles/tokens' as *;
+
+.page-container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header {
+  margin-bottom: $spacing-xl;
+}
+
+.page-title-section {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  margin-bottom: $spacing-xs;
+}
+
+.page-icon {
+  font-size: $font-size-2xl;
+  color: var(--app-primary);
+}
+
+.page-title {
+  font-size: $font-size-2xl;
+  font-weight: 700;
+  color: var(--app-text);
+  margin: 0;
+}
+
+.page-description {
+  font-size: $font-size-base;
+  color: var(--app-text);
+  opacity: 0.7;
+  margin: 0;
+}
+
+.page-content {
+  display: grid;
+  gap: $spacing-lg;
+}
+
+:host ::ng-deep .placeholder-card {
+  border-radius: $radius-lg;
+}
+
+.placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: $spacing-2xl;
+  min-height: 300px;
+}
+
+.placeholder-icon {
+  font-size: 4rem;
+  color: var(--app-primary);
+  opacity: 0.5;
+  margin-bottom: $spacing-lg;
+}
+
+.placeholder-content h3 {
+  font-size: $font-size-xl;
+  font-weight: 600;
+  color: var(--app-text);
+  margin: 0 0 $spacing-sm;
+}
+
+.placeholder-content p {
+  font-size: $font-size-base;
+  color: var(--app-text);
+  opacity: 0.7;
+  margin: 0;
+  max-width: 400px;
+}
+
+:host-context([dir='rtl']) {
+  .page-title-section {
+    flex-direction: row-reverse;
+  }
+}

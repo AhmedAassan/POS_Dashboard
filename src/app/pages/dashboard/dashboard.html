@@ -1,0 +1,19 @@
+<div class="page-container">
+  <div class="page-header">
+    <div class="page-title-section">
+      <i [class]="pageIcon" class="page-icon"></i>
+      <h1 class="page-title">{{ pageTitle() }}</h1>
+    </div>
+    <p class="page-description">{{ pageDescription() }}</p>
+  </div>
+
+  <div class="page-content">
+    <p-card styleClass="placeholder-card">
+      <div class="placeholder-content">
+        <i class="pi pi-chart-bar placeholder-icon"></i>
+        <h3>{{ pageTitle() }}</h3>
+        <p>{{ pageDescription() }}</p>
+      </div>
+    </p-card>
+  </div>
+</div>

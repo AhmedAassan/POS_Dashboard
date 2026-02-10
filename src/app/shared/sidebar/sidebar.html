@@ -1,0 +1,55 @@
+<aside class="sidebar" [class.collapsed]="collapsed">
+  <!-- Logo Section -->
+  <div class="sidebar-logo">
+    <div class="logo-container">
+      <i class="pi pi-shopping-cart logo-icon"></i>
+      <span class="logo-text" *ngIf="!collapsed">{{ texts().companyName }}</span>
+    </div>
+    <button
+      type="button"
+      class="collapse-btn"
+      (click)="toggleCollapse()"
+      [pTooltip]="collapseTooltip()"
+      [tooltipPosition]="isRtl() ? 'left' : 'right'"
+      pRipple
+    >
+      <i class="pi" [ngClass]="collapsed ? (isRtl() ? 'pi-angle-left' : 'pi-angle-right') : (isRtl() ? 'pi-angle-right' : 'pi-angle-left')"></i>
+    </button>
+  </div>
+
+  <!-- Navigation Menu -->
+  <nav class="sidebar-nav">
+    <ul class="nav-list">
+      @for (item of menuItems(); track item.route) {
+        <li class="nav-item">
+          <a
+            [routerLink]="item.route"
+            routerLinkActive="active"
+            class="nav-link"
+            [pTooltip]="collapsed ? item.label : ''"
+            [tooltipPosition]="isRtl() ? 'left' : 'right'"
+            pRipple
+          >
+            <i [class]="item.icon" class="nav-icon"></i>
+            <span class="nav-label" *ngIf="!collapsed">{{ item.label }}</span>
+          </a>
+        </li>
+      }
+    </ul>
+  </nav>
+
+  <!-- Logout Section -->
+  <div class="sidebar-footer">
+    <button
+      type="button"
+      class="logout-btn"
+      (click)="onLogout()"
+      [pTooltip]="collapsed ? logoutLabel() : ''"
+      [tooltipPosition]="isRtl() ? 'left' : 'right'"
+      pRipple
+    >
+      <i class="pi pi-sign-out nav-icon"></i>
+      <span class="nav-label" *ngIf="!collapsed">{{ logoutLabel() }}</span>
+    </button>
+  </div>
+</aside>

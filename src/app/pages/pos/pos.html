@@ -1,0 +1,662 @@
+<div class="pos-container">
+  <!-- Left Panel: Products Catalog -->
+  <div class="products-panel" role="region" [attr.aria-label]="texts().products">
+    <!-- Filters Bar -->
+    <div class="filters-bar" role="search">
+      <div class="filters-left">
+        <div class="category-filter">
+          <p-select
+            [options]="categoryOptions()"
+            [(ngModel)]="selectedCategory"
+            optionLabel="name"
+            optionValue="slug"
+            [placeholder]="texts().filterByCategory"
+            [showClear]="true"
+            (onChange)="onCategoryChange($event.value ? { slug: $event.value, name: '', url: '' } : null)"
+            styleClass="category-dropdown"
+            [ariaLabel]="texts().filterByCategory"
+          >
+            <ng-template pTemplate="selectedItem" let-selected>
+              @if (selected) {
+                <div class="category-selected">
+                  <i class="pi pi-tag" aria-hidden="true"></i>
+                  <span>{{ selected.name || texts().allCategories }}</span>
+                </div>
+              }
+            </ng-template>
+            <ng-template pTemplate="item" let-category>
+              <span>{{ category.name }}</span>
+            </ng-template>
+          </p-select>
+        </div>
+        @if (searchQuery()) {
+          <div class="search-indicator">
+            <p-tag 
+              [value]="getFormattedSearchQuery()" 
+              [rounded]="true"
+              severity="info"
+              icon="pi pi-search">
+            </p-tag>
+          </div>
+        }
+      </div>
+      <div class="filters-right">
+        @if (!isLoading() && totalProducts() > 0) {
+          <span class="products-count" aria-live="polite">
+            {{ texts().showingProducts }} 
+            <strong>{{ showingFrom() }}-{{ showingTo() }}</strong> 
+            {{ texts().of }} 
+            <strong>{{ totalProducts() }}</strong>
+          </span>
+        }
+      </div>
+    </div>
+    <!-- Products Grid -->
+    <div 
+      class="products-grid-container" 
+      role="main"
+      [attr.aria-busy]="isLoading()"
+      aria-live="polite"
+    >
+      <!-- Loading State -->
+      @if (isLoading()) {
+        <div class="products-grid" role="status" [attr.aria-label]="texts().loading">
+          @for (i of skeletonItems; track trackByIndex($index)) {
+            <div class="product-card-skeleton" aria-hidden="true">
+              <p-skeleton height="140px" styleClass="skeleton-image" />
+              <div class="skeleton-content">
+                <p-skeleton height="18px" styleClass="mb-2" />
+                <p-skeleton height="14px" width="60%" styleClass="mb-2" />
+                <p-skeleton height="22px" width="40%" />
+              </div>
+            </div>
+          }
+        </div>
+        <div class="sr-only">{{ texts().loading }}</div>
+      }
+      <!-- Empty State -->
+      @else if (showEmptyState()) {
+        <div class="empty-products" role="status" aria-live="polite">
+          <div class="empty-products-icon" aria-hidden="true">
+            <i class="pi pi-box"></i>
+          </div>
+          <h3 id="no-products-heading">{{ texts().noProductsFound }}</h3>
+          <p id="no-products-description">{{ texts().noResults }}</p>
+          @if (hasActiveFilters()) {
+            <button
+              pButton
+              type="button"
+              [label]="texts().clear"
+              icon="pi pi-times"
+              severity="secondary"
+              [outlined]="true"
+              (click)="clearFilters()"
+              [attr.aria-label]="texts().clear + ' ' + texts().filterByCategory"
+            ></button>
+          }
+        </div>
+      }
+      <!-- Products Grid -->
+      @else {
+        <div 
+          class="products-grid" 
+          role="list" 
+          [attr.aria-label]="texts().products + ' (' + totalProducts() + ')'"
+        >
+          @for (product of products(); track trackByProductId($index, product)) {
+            <article
+              class="product-card" 
+              [class.out-of-stock]="product.stock === 0"
+              role="listitem"
+              tabindex="0"
+              (click)="openProductDialog(product)"
+              (keydown)="onProductKeydown($event, product)"
+              [attr.aria-label]="product.title + ', ' + formatPrice(getDiscountedPrice(product)) + (product.stock === 0 ? ', ' + texts().outOfStock : '')"
+              pRipple
+            >
+              <div class="product-image-wrapper">
+                <img 
+                  [src]="product.thumbnail" 
+                  [alt]="product.title"
+                  loading="lazy"
+                  class="product-image"
+                />
+                @if (product.discountPercentage > 0) {
+                  <span 
+                    class="discount-badge" 
+                    [attr.aria-label]="product.discountPercentage.toFixed(0) + '% ' + texts().discount"
+                  >
+                    -{{ product.discountPercentage.toFixed(0) }}%
+                  </span>
+                }
+                @if (product.stock === 0) {
+                  <div class="out-of-stock-overlay" aria-hidden="true">
+                    <span>{{ texts().outOfStock }}</span>
+                  </div>
+                }
+              </div>
+              <div class="product-info">
+                <span class="product-category">{{ product.category }}</span>
+                <h4 class="product-title">{{ product.title }}</h4>
+                <div class="product-price-row">
+                  <div class="product-price">
+                    @if (product.discountPercentage > 0) {
+                      <span class="original-price" aria-label="Original price">
+                        {{ formatPrice(product.price) }}
+                      </span>
+                    }
+                    <span class="current-price">
+                      {{ formatPrice(getDiscountedPrice(product)) }}
+                    </span>
+                  </div>
+                  <div class="product-rating" [attr.aria-label]="'Rating: ' + product.rating.toFixed(1) + ' out of 5'">
+                    <i class="pi pi-star-fill" aria-hidden="true"></i>
+                    <span>{{ product.rating.toFixed(1) }}</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+        <!-- Pagination -->
+        @if (totalProducts() > pageSize()) {
+          <nav class="pagination-container" [attr.aria-label]="'Pagination'">
+            <p-paginator
+              [first]="currentPage() * pageSize()"
+              [rows]="pageSize()"
+              [totalRecords]="totalProducts()"
+              [rowsPerPageOptions]="[12, 24, 48]"
+              (onPageChange)="onPageChange($event)"
+              [showCurrentPageReport]="false"
+              [showFirstLastIcon]="true"
+            />
+          </nav>
+        }
+      }
+    </div>
+  </div>
+  <!-- Right Panel: Cart (Desktop) -->
+  <aside 
+    class="cart-panel desktop-cart" 
+    role="complementary"
+    [attr.aria-label]="texts().cart"
+  >
+    <ng-container *ngTemplateOutlet="cartContent"></ng-container>
+  </aside>
+  <!-- Mobile Cart Toggle Button -->
+  <button
+    class="mobile-cart-fab"
+    pButton
+    type="button"
+    icon="pi pi-shopping-cart"
+    [rounded]="true"
+    severity="info"
+    (click)="toggleMobileCart()"
+    pBadge
+    [value]="cartItemCount().toString()"
+    badgeSeverity="danger"
+    [attr.aria-label]="texts().cart + ' (' + cartItemCount() + ' ' + (cartItemCount() === 1 ? texts().item : texts().items) + ')'"
+    [attr.aria-expanded]="showMobileCart()"
+    aria-haspopup="dialog"
+  ></button>
+  <!-- Mobile Cart Sidebar -->
+  <p-drawer
+    [(visible)]="showMobileCart"
+    [position]="cartSidebarPosition()"
+    [style]="{ width: '100%', maxWidth: '400px' }"
+    [showCloseIcon]="true"
+    [modal]="true"
+    [dismissible]="true"
+    styleClass="mobile-cart-sidebar"
+    [ariaCloseLabel]="texts().close"
+    role="dialog"
+    [attr.aria-label]="texts().cart"
+  >
+    <ng-template pTemplate="header">
+      <div class="mobile-cart-header">
+        <h2 id="mobile-cart-title">
+          <i class="pi pi-shopping-cart" aria-hidden="true"></i>
+          {{ texts().cart }}
+          @if (!isCartEmpty()) {
+            <span class="cart-count">({{ cartSummary().itemCount }})</span>
+          }
+        </h2>
+      </div>
+    </ng-template>
+    <ng-container *ngTemplateOutlet="cartContent"></ng-container>
+  </p-drawer>
+</div>
+<!-- Cart Content Template (reused for desktop and mobile) -->
+<ng-template #cartContent>
+  <div class="cart-container">
+    <header class="cart-header desktop-only">
+      <h2 id="desktop-cart-title">
+        <i class="pi pi-shopping-cart" aria-hidden="true"></i>
+        {{ texts().cart }}
+        @if (!isCartEmpty()) {
+          <span class="cart-count">({{ cartSummary().itemCount }})</span>
+        }
+      </h2>
+      @if (!isCartEmpty()) {
+        <button
+          pButton
+          type="button"
+          [label]="texts().clearCart"
+          icon="pi pi-trash"
+          severity="danger"
+          [text]="true"
+          size="small"
+          (click)="clearCart()"
+          [attr.aria-label]="texts().clearCart"
+        ></button>
+      }
+    </header>
+    <div class="cart-body">
+      @if (isCartEmpty()) {
+        <div class="empty-cart" role="status">
+          <div class="empty-cart-icon" aria-hidden="true">
+            <i class="pi pi-shopping-cart"></i>
+          </div>
+          <h3 id="empty-cart-heading">{{ texts().emptyCart }}</h3>
+          <p id="empty-cart-description">{{ texts().emptyCartMessage }}</p>
+        </div>
+      } @else {
+        <div class="cart-items-wrapper">
+          <ul class="cart-items" role="list" [attr.aria-label]="texts().cart + ' ' + texts().items">
+            @for (item of cartItems(); track trackByCartItemId($index, item)) {
+              <li class="cart-item" role="listitem">
+                <div class="cart-item-image" aria-hidden="true">
+                  <img [src]="item.product.thumbnail" [alt]="item.product.title" />
+                </div>
+                <div class="cart-item-content">
+                  <div class="cart-item-header">
+                    <h4 class="cart-item-title">{{ item.product.title }}</h4>
+                    <button
+                      pButton
+                      type="button"
+                      icon="pi pi-times"
+                      severity="danger"
+                      [text]="true"
+                      [rounded]="true"
+                      size="small"
+                      class="remove-btn"
+                      (click)="removeCartItem(item)"
+                      [attr.aria-label]="texts().remove + ' ' + item.product.title"
+                    ></button>
+                  </div>
+                  <div class="cart-item-meta">
+                    <span class="item-unit">{{ getUnitName(item.selectedUnit) }}</span>
+                    @if (item.selectedAdditions.length > 0) {
+                      <span class="item-additions">
+                        +{{ item.selectedAdditions.length }} {{ texts().additions }}
+                      </span>
+                    }
+                  </div>
+                  <div class="cart-item-footer">
+                    <div class="quantity-controls" role="group" [attr.aria-label]="texts().quantity + ' ' + texts().of + ' ' + item.product.title">
+                      <button
+                        pButton
+                        type="button"
+                        icon="pi pi-minus"
+                        [rounded]="true"
+                        [outlined]="true"
+                        size="small"
+                        (click)="decrementCartItem(item)"
+                        [attr.aria-label]="'Decrease quantity of ' + item.product.title"
+                      ></button>
+                      <span class="quantity" aria-live="polite" [attr.aria-label]="texts().quantity + ': ' + item.quantity">
+                        {{ item.quantity }}
+                      </span>
+                      <button
+                        pButton
+                        type="button"
+                        icon="pi pi-plus"
+                        [rounded]="true"
+                        [outlined]="true"
+                        size="small"
+                        (click)="incrementCartItem(item)"
+                        [attr.aria-label]="'Increase quantity of ' + item.product.title"
+                      ></button>
+                    </div>
+                    <span class="cart-item-price" [attr.aria-label]="texts().total + ': ' + formatPrice(item.totalPrice)">
+                      {{ formatPrice(item.totalPrice) }}
+                    </span>
+                  </div>
+                </div>
+              </li>
+            }
+          </ul>
+        </div>
+        <!-- Cart Summary -->
+        <footer class="cart-summary">
+          <div class="summary-details" role="group" [attr.aria-label]="texts().orderSummary">
+            <div class="summary-row">
+              <span>{{ texts().subtotal }}</span>
+              <span>{{ formatPrice(cartSummary().subtotal) }}</span>
+            </div>
+            @if (cartSummary().discount > 0) {
+              <div class="summary-row discount">
+                <span>{{ texts().discount }} ({{ cartSummary().discountPercentage }}%)</span>
+                <span>-{{ formatPrice(cartSummary().discount) }}</span>
+              </div>
+            }
+            <div class="summary-row">
+              <span>{{ texts().tax }} ({{ cartSummary().taxPercentage }}%)</span>
+              <span>{{ formatPrice(cartSummary().tax) }}</span>
+            </div>
+            <div class="summary-divider" role="separator"></div>
+            <div class="summary-row total">
+              <span>{{ texts().total }}</span>
+              <span aria-live="polite">{{ formatPrice(cartSummary().total) }}</span>
+            </div>
+          </div>
+          <button
+            pButton
+            type="button"
+            [label]="texts().checkout"
+            icon="pi pi-arrow-right"
+            [iconPos]="isRtl() ? 'left' : 'right'"
+            severity="primary"
+            class="checkout-btn"
+            (click)="openSummaryDialog()"
+            [attr.aria-label]="texts().checkout + ' - ' + texts().total + ': ' + formatPrice(cartSummary().total)"
+          ></button>
+        </footer>
+      }
+    </div>
+  </div>
+</ng-template>
+<!-- Product Detail Dialog -->
+<p-dialog
+  [(visible)]="showProductDialog"
+  [header]="texts().productDetails"
+  [modal]="true"
+  [closable]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '520px', maxWidth: '95vw' }"
+  [breakpoints]="{ '600px': '95vw' }"
+  (onHide)="closeProductDialog()"
+  styleClass="product-dialog"
+  [closeAriaLabel]="texts().close"
+  role="dialog"
+  [attr.aria-labelledby]="'product-dialog-title'"
+>
+  @if (selectedProduct(); as product) {
+    <div class="product-dialog-content">
+      <div class="product-dialog-image">
+        <img [src]="product.images[0] || product.thumbnail" [alt]="product.title" />
+        @if (product.discountPercentage > 0) {
+          <span class="discount-badge large" [attr.aria-label]="product.discountPercentage.toFixed(0) + '% discount'">
+            -{{ product.discountPercentage.toFixed(0) }}%
+          </span>
+        }
+      </div>
+      <div class="product-dialog-info">
+        <span class="product-category-tag">{{ product.category }}</span>
+        <h3 id="product-dialog-title">{{ product.title }}</h3>
+        <p class="product-description">{{ product.description }}</p>
+        <div class="product-dialog-price">
+          @if (product.discountPercentage > 0) {
+            <span class="original-price" aria-label="Original price">{{ formatPrice(product.price) }}</span>
+          }
+          <span class="current-price">{{ formatPrice(getDiscountedPrice(product)) }}</span>
+        </div>
+        <div class="product-meta">
+          <div class="meta-item" [attr.aria-label]="'Rating: ' + product.rating.toFixed(1) + ' out of 5'">
+            <i class="pi pi-star-fill" aria-hidden="true"></i>
+            <span>{{ product.rating.toFixed(1) }}</span>
+          </div>
+          <div 
+            class="meta-item" 
+            [class.in-stock]="product.stock > 0" 
+            [class.out-of-stock]="product.stock === 0"
+            [attr.aria-label]="product.stock > 0 ? texts().inStock + ': ' + product.stock + ' available' : texts().outOfStock"
+          >
+            <i class="pi" [class.pi-check-circle]="product.stock > 0" [class.pi-times-circle]="product.stock === 0" aria-hidden="true"></i>
+            <span>{{ product.stock > 0 ? texts().inStock + ' (' + product.stock + ')' : texts().outOfStock }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-divider" role="separator"></div>
+      <!-- Quantity -->
+      <fieldset class="dialog-section">
+        <legend class="section-label">{{ texts().quantity }}</legend>
+        <p-inputNumber
+          [(ngModel)]="selectedQuantity"
+          [showButtons]="true"
+          [min]="1"
+          [max]="product.stock || 1"
+          buttonLayout="horizontal"
+          spinnerMode="horizontal"
+          inputStyleClass="quantity-input"
+          decrementButtonClass="p-button-outlined"
+          incrementButtonClass="p-button-outlined"
+          incrementButtonIcon="pi pi-plus"
+          decrementButtonIcon="pi pi-minus"
+          (ngModelChange)="selectedQuantity.set($event)"
+          [ariaLabel]="texts().quantity"
+        />
+      </fieldset>
+      <!-- Unit Selection -->
+      <fieldset class="dialog-section">
+        <legend class="section-label">{{ texts().unit }}</legend>
+        <div class="units-grid" role="radiogroup" [attr.aria-label]="texts().unit">
+          @for (unit of units; track unit.id) {
+            <div 
+              class="unit-option" 
+              [class.selected]="selectedUnit().id === unit.id"
+              (click)="selectedUnit.set(unit)"
+            >
+              <p-radioButton
+                [name]="'unit'"
+                [value]="unit"
+                [(ngModel)]="selectedUnit"
+                [inputId]="unit.id"
+                (ngModelChange)="selectedUnit.set($event)"
+                [ariaLabel]="getUnitName(unit)"
+              />
+              <label [for]="unit.id">
+                <span class="unit-name">{{ getUnitName(unit) }}</span>
+                @if (unit.priceModifier !== 1) {
+                  <span class="unit-modifier">×{{ unit.priceModifier }}</span>
+                }
+              </label>
+            </div>
+          }
+        </div>
+      </fieldset>
+      <!-- Additions -->
+      <fieldset class="dialog-section">
+        <legend class="section-label">{{ texts().additions }}</legend>
+        <div class="additions-grid" role="group" [attr.aria-label]="texts().additions">
+          @for (addition of additions; track addition.id) {
+            <div 
+              class="addition-option"
+              [class.selected]="isAdditionSelected(addition)"
+              (click)="toggleAddition(addition)"
+            >
+              <p-checkbox
+                [binary]="true"
+                [inputId]="addition.id"
+                [ngModel]="isAdditionSelected(addition)"
+                (ngModelChange)="toggleAddition(addition)"
+                [ariaLabel]="getAdditionName(addition) + ' +' + formatPrice(addition.price)"
+              />
+              <label [for]="addition.id">
+                <span class="addition-name">{{ getAdditionName(addition) }}</span>
+                <span class="addition-price">+{{ formatPrice(addition.price) }}</span>
+              </label>
+            </div>
+          }
+        </div>
+      </fieldset>
+      <!-- Notes -->
+      <div class="dialog-section">
+        <label class="section-label" for="product-notes">{{ texts().notes }}</label>
+        <textarea
+          pTextarea
+          id="product-notes"
+          [(ngModel)]="productNotes"
+          [placeholder]="texts().notesPlaceholder"
+          [rows]="2"
+          [autoResize]="true"
+          class="notes-textarea"
+          (ngModelChange)="productNotes.set($event)"
+          [attr.aria-label]="texts().notes"
+        ></textarea>
+      </div>
+      <div class="dialog-divider" role="separator"></div>
+      <!-- Total Price -->
+      <div class="dialog-total" aria-live="polite">
+        <span class="total-label">{{ texts().total }}</span>
+        <span class="total-price">{{ formatPrice(calculatedItemPrice()) }}</span>
+      </div>
+    </div>
+  }
+  <ng-template pTemplate="footer">
+    <div class="dialog-footer">
+      <button
+        pButton
+        type="button"
+        [label]="texts().cancel"
+        severity="secondary"
+        [outlined]="true"
+        (click)="closeProductDialog()"
+        [attr.aria-label]="texts().cancel"
+      ></button>
+      <button
+        pButton
+        type="button"
+        [label]="texts().addToCart"
+        icon="pi pi-shopping-cart"
+        severity="primary"
+        (click)="addToCart()"
+        [disabled]="!selectedProduct() || selectedProduct()!.stock === 0"
+        [attr.aria-label]="texts().addToCart + ' - ' + formatPrice(calculatedItemPrice())"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+<!-- Order Summary Dialog -->
+<p-dialog
+  [(visible)]="showSummaryDialog"
+  [header]="texts().orderSummary"
+  [modal]="true"
+  [closable]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '480px', maxWidth: '95vw' }"
+  [breakpoints]="{ '600px': '95vw' }"
+  (onHide)="closeSummaryDialog()"
+  styleClass="summary-dialog"
+  [closeAriaLabel]="texts().close"
+  role="dialog"
+  [attr.aria-labelledby]="'summary-dialog-title'"
+>
+  <div class="summary-dialog-content">
+    <!-- Items List -->
+    <section class="summary-items-section">
+      <h4 class="section-title" id="summary-dialog-title">{{ texts().items }} ({{ cartSummary().itemCount }})</h4>
+      <ul class="summary-items-list" role="list" [attr.aria-label]="texts().items">
+        @for (item of cartItems(); track item.id) {
+          <li class="summary-item" role="listitem">
+            <div class="summary-item-info">
+              <span class="item-qty" [attr.aria-label]="texts().quantity + ': ' + item.quantity">{{ item.quantity }}×</span>
+              <span class="item-name">{{ item.product.title }}</span>
+            </div>
+            <span class="item-price">{{ formatPrice(item.totalPrice) }}</span>
+          </li>
+        }
+      </ul>
+    </section>
+    <div class="dialog-divider" role="separator"></div>
+    <!-- Discount Input -->
+    <section class="discount-section">
+      <label class="section-label" for="discount-input">{{ texts().discountPercentage }}</label>
+      <div class="discount-input-row">
+        <p-inputGroup styleClass="discount-input-group">
+          <p-inputNumber
+            id="discount-input"
+            [(ngModel)]="discountInput"
+            [min]="0"
+            [max]="100"
+            suffix="%"
+            [showButtons]="false"
+            inputStyleClass="discount-input"
+            (ngModelChange)="discountInput.set($event)"
+            [ariaLabel]="texts().discountPercentage"
+          />
+          <button
+            type="button"
+            pButton
+            [label]="texts().applyDiscount"
+            (click)="applyDiscount()"
+            [attr.aria-label]="texts().applyDiscount"
+          ></button>
+        </p-inputGroup>
+      </div>
+    </section>
+    <div class="dialog-divider" role="separator"></div>
+    <!-- Summary Totals -->
+    <section class="summary-totals-section" role="group" [attr.aria-label]="texts().orderSummary">
+      <div class="summary-row">
+        <span>{{ texts().subtotal }}</span>
+        <span>{{ formatPrice(cartSummary().subtotal) }}</span>
+      </div>
+      <div class="summary-row discount">
+        <span>{{ texts().discount }} ({{ cartSummary().discountPercentage }}%)</span>
+        <span>-{{ formatPrice(cartSummary().discount) }}</span>
+      </div>
+      <div class="summary-row">
+        <span>{{ texts().tax }} ({{ cartSummary().taxPercentage }}%)</span>
+        <span>{{ formatPrice(cartSummary().tax) }}</span>
+      </div>
+      <div class="summary-divider" role="separator"></div>
+      <div class="summary-row total">
+        <span>{{ texts().total }}</span>
+        <span aria-live="polite">{{ formatPrice(cartSummary().total) }}</span>
+      </div>
+    </section>
+  </div>
+  <ng-template pTemplate="footer">
+    <div class="dialog-footer">
+      <button
+        pButton
+        type="button"
+        [label]="texts().cancel"
+        severity="secondary"
+        [outlined]="true"
+        (click)="closeSummaryDialog()"
+        [attr.aria-label]="texts().cancel"
+      ></button>
+      <button
+        pButton
+        type="button"
+        [label]="texts().placeOrder"
+        icon="pi pi-check"
+        severity="success"
+        (click)="placeOrder()"
+        [attr.aria-label]="texts().placeOrder + ' - ' + texts().total + ': ' + formatPrice(cartSummary().total)"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+<!-- Screen Reader Only Styles (add to global or component styles if needed) -->
+<style>
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+fieldset.dialog-section {
+    border: none;
+}
+</style>
+

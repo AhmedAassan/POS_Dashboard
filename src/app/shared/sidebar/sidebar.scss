@@ -1,0 +1,226 @@
+@use '../../../styles/tokens' as *;
+
+$sidebar-width-expanded: 260px;
+$sidebar-width-collapsed: 72px;
+$sidebar-transition: width $transition-base, padding $transition-base;
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: $sidebar-width-expanded;
+  height: 100vh;
+  background-color: var(--app-surface);
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  transition: $sidebar-transition;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  overflow: hidden;
+
+  &.collapsed {
+    width: $sidebar-width-collapsed;
+
+    .sidebar-logo {
+      padding: $spacing-md $spacing-sm;
+      justify-content: center;
+    }
+
+    .logo-container {
+      justify-content: center;
+    }
+
+    .nav-link,
+    .logout-btn {
+      justify-content: center;
+      padding: $spacing-md;
+    }
+  }
+}
+
+// Logo Section
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $spacing-lg $spacing-md;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  min-height: 70px;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  overflow: hidden;
+}
+
+.logo-icon {
+  font-size: 1.75rem;
+  color: var(--app-primary);
+  flex-shrink: 0;
+}
+
+.logo-text {
+  font-size: $font-size-lg;
+  font-weight: 700;
+  color: var(--app-text);
+  white-space: nowrap;
+}
+
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: $radius-sm;
+  background-color: transparent;
+  color: var(--app-text);
+  cursor: pointer;
+  transition: background-color $transition-fast, color $transition-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    background-color: rgba(0, 119, 182, 0.1);
+    color: var(--app-primary);
+  }
+
+  i {
+    font-size: $font-size-base;
+  }
+}
+
+// Navigation
+.sidebar-nav {
+  flex: 1;
+  padding: $spacing-md 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.nav-list {
+  list-style: none;
+  padding: 0 $spacing-sm;
+  margin: 0;
+}
+
+.nav-item {
+  margin-bottom: $spacing-xs;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  padding: $spacing-md $spacing-lg;
+  color: var(--app-text);
+  text-decoration: none;
+  border-radius: $radius-md;
+  transition: background-color $transition-fast, color $transition-fast;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: rgba(0, 119, 182, 0.08);
+    color: var(--app-primary);
+  }
+
+  &.active {
+    background-color: var(--app-primary);
+    color: $color-white;
+
+    .nav-icon {
+      color: $color-white;
+    }
+  }
+}
+
+.nav-icon {
+  font-size: $font-size-lg;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+
+.nav-label {
+  font-size: $font-size-base;
+  font-weight: 500;
+}
+
+// Footer / Logout
+.sidebar-footer {
+  padding: $spacing-md $spacing-sm;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  width: 100%;
+  padding: $spacing-md $spacing-lg;
+  border: none;
+  border-radius: $radius-md;
+  background-color: transparent;
+  color: var(--app-text);
+  font-size: $font-size-base;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color $transition-fast, color $transition-fast;
+  overflow: hidden;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+  }
+}
+
+// Dark mode adjustments
+:host-context(.app-dark) {
+  .sidebar {
+    border-right-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .sidebar-logo {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .sidebar-footer {
+    border-top-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .collapse-btn:hover {
+    background-color: rgba(0, 119, 182, 0.2);
+  }
+
+  .nav-link:hover {
+    background-color: rgba(0, 119, 182, 0.15);
+  }
+
+  .logout-btn:hover {
+    background-color: rgba(220, 53, 69, 0.2);
+  }
+}
+
+// RTL Support
+:host-context([dir='rtl']) {
+  .sidebar {
+    left: auto;
+    right: 0;
+    border-right: none;
+    border-left: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  .collapse-btn i {
+    transform: scaleX(-1);
+  }
+
+  .nav-link,
+  .logout-btn {
+    flex-direction: row-reverse;
+  }
+}

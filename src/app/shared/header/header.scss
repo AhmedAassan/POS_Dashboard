@@ -1,0 +1,178 @@
+@use '../../../styles/tokens' as *;
+
+$header-height: 70px;
+$sidebar-width-expanded: 260px;
+$sidebar-width-collapsed: 72px;
+
+.header {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: $sidebar-width-expanded;
+  height: $header-height;
+  background-color: var(--app-surface);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  z-index: 999;
+  transition: left $transition-base, right $transition-base;
+
+  &.sidebar-collapsed {
+    left: $sidebar-width-collapsed;
+  }
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 $spacing-lg;
+  gap: $spacing-lg;
+}
+
+// Left Section
+.header-left {
+  flex-shrink: 0;
+}
+
+.company-name {
+  font-size: $font-size-xl;
+  font-weight: 700;
+  color: var(--app-primary);
+  margin: 0;
+}
+
+// Center Section
+.header-center {
+  flex: 1;
+  max-width: 500px;
+  display: flex;
+  justify-content: center;
+}
+
+.search-field {
+  width: 100%;
+  position: relative;
+}
+
+.search-input {
+  width: 100%;
+  border-radius: $radius-lg;
+  padding-right: 2.5rem;
+}
+
+:host ::ng-deep .clear-icon {
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity $transition-fast;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+// Right Section
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  flex-shrink: 0;
+}
+
+.action-btn {
+  width: 40px;
+  height: 40px;
+  color: var(--app-text) !important;
+
+  &:hover {
+    background-color: rgba(0, 119, 182, 0.1) !important;
+    color: var(--app-primary) !important;
+  }
+
+  &.logout-btn:hover {
+    background-color: rgba(220, 53, 69, 0.1) !important;
+    color: #dc3545 !important;
+  }
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  padding: $spacing-xs $spacing-sm;
+  border-radius: $radius-md;
+  margin: 0 $spacing-xs;
+}
+
+:host ::ng-deep .user-avatar {
+  background-color: var(--app-primary);
+  color: $color-white;
+  font-weight: 600;
+  flex-shrink: 0;
+
+  img {
+    object-fit: cover;
+  }
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  @media (max-width: 900px) {
+    display: none;
+  }
+}
+
+.user-name {
+  font-size: $font-size-sm;
+  font-weight: 600;
+  color: var(--app-text);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.user-email {
+  font-size: $font-size-xs;
+  color: var(--app-text);
+  opacity: 0.6;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+// Dark mode adjustments
+:host-context(.app-dark) {
+  .header {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+// RTL Support
+:host-context([dir='rtl']) {
+  .header {
+    left: 0;
+    right: $sidebar-width-expanded;
+
+    &.sidebar-collapsed {
+      left: 0;
+      right: $sidebar-width-collapsed;
+    }
+  }
+
+  .header-right {
+    flex-direction: row-reverse;
+  }
+
+  .user-info {
+    flex-direction: row-reverse;
+  }
+
+  .user-details {
+    align-items: flex-end;
+  }
+
+  .search-input {
+    padding-right: 2.5rem;
+    padding-left: 2.5rem;
+  }
+}

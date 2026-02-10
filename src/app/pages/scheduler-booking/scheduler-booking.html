@@ -1,0 +1,35 @@
+<!-- scheduler-booking.html - FULL REPLACEMENT -->
+
+<mat-sidenav-container class="scheduler-container">
+  <mat-sidenav-content class="main-content">
+    <!-- Calendar Header -->
+    <app-calendar-header
+      (newAppointment)="openDrawerForCreate()"
+      (scrollToNow)="onScrollToNow()" />
+    
+    <!-- Calendar Grid -->
+    <div class="calendar-wrapper">
+      <app-calendar-grid 
+        (editAppointment)="openDrawerForEdit($event)" />
+    </div>
+  </mat-sidenav-content>
+
+  <!-- Right Drawer -->
+  <mat-sidenav
+    #drawer
+    [opened]="isDrawerOpen()"
+    (openedChange)="isDrawerOpen.set($event)"
+    mode="over"
+    position="end"
+    class="appointment-drawer">
+    
+    @if (isDrawerOpen()) {
+      <app-appointment-drawer
+        [appointmentToEdit]="appointmentToEdit()"
+        (close)="closeDrawer()"
+        (created)="onAppointmentCreated()"
+        (updated)="onAppointmentUpdated()"
+        (deleted)="onAppointmentDeleted()" />
+    }
+  </mat-sidenav>
+</mat-sidenav-container>

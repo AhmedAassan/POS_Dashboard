@@ -1,0 +1,114 @@
+<div class="login-container">
+  <!-- Theme/Direction toggles in corner -->
+  <div class="login-actions">
+    <button
+      type="button"
+      pButton
+      [icon]="isDarkMode() ? 'pi pi-sun' : 'pi pi-moon'"
+      class="action-btn"
+      [rounded]="true"
+      [text]="true"
+      (click)="onToggleDarkMode()"
+      [pTooltip]="darkModeTooltip()"
+      tooltipPosition="bottom"
+    ></button>
+    <button
+      type="button"
+      pButton
+      [icon]="isRtl() ? 'pi pi-align-left' : 'pi pi-align-right'"
+      class="action-btn"
+      [rounded]="true"
+      [text]="true"
+      (click)="onToggleDirection()"
+      [pTooltip]="directionTooltip()"
+      tooltipPosition="bottom"
+    ></button>
+  </div>
+
+  <p-card class="login-card">
+    <ng-template pTemplate="header">
+      <div class="login-header">
+        <i class="pi pi-shopping-cart login-icon"></i>
+        <h1 class="login-title">{{ loginTitle() }}</h1>
+        <p class="login-subtitle">{{ loginSubtitle() }}</p>
+      </div>
+    </ng-template>
+
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
+      <!-- Error Message -->
+      @if (errorMessage()) {
+        <p-message
+          severity="error"
+          [text]="errorMessage()!"
+          styleClass="error-message"
+        />
+      }
+
+      <!-- Username Field -->
+      <div class="form-field">
+        <p-floatlabel>
+          <input
+            pInputText
+            id="username"
+            formControlName="username"
+            class="w-full"
+            [class.ng-invalid]="hasError('username')"
+            [class.ng-dirty]="hasError('username')"
+            autocomplete="username"
+          />
+          <label for="username">{{ usernameLabel() }}</label>
+        </p-floatlabel>
+        @if (hasError('username')) {
+          <small class="error-text">{{ usernameRequiredError() }}</small>
+        }
+      </div>
+
+      <!-- Password Field -->
+      <div class="form-field">
+        <p-floatlabel>
+          <p-password
+            id="password"
+            formControlName="password"
+            [feedback]="false"
+            [toggleMask]="true"
+            styleClass="w-full"
+            inputStyleClass="w-full"
+            [class.ng-invalid]="hasError('password')"
+            [class.ng-dirty]="hasError('password')"
+            autocomplete="current-password"
+          />
+          <label for="password">{{ passwordLabel() }}</label>
+        </p-floatlabel>
+        @if (hasError('password')) {
+          <small class="error-text">{{ passwordRequiredError() }}</small>
+        }
+      </div>
+
+      <!-- Demo Credentials Button -->
+      <div class="demo-credentials">
+        <button
+          type="button"
+          pButton
+          [label]="demoCredentials()"
+          class="demo-btn"
+          [text]="true"
+          size="small"
+          (click)="fillDemoCredentials()"
+        ></button>
+      </div>
+
+      <!-- Submit Button -->
+      <p-button
+        type="submit"
+        [label]="loginButtonText()"
+        icon="pi pi-sign-in"
+        [iconPos]="isRtl() ? 'right' : 'left'"
+        class="submit-btn"
+        [loading]="isLoading()"
+        [disabled]="isLoading()"
+        severity="primary"
+        styleClass="w-full"
+      />
+    </form>
+  </p-card>
+</div>

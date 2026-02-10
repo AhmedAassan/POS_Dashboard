@@ -1,0 +1,152 @@
+@use 'tokens' as *;
+
+// ======================
+// CSS RESET & BASE
+// ======================
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+
+  // Light mode (default)
+  --app-bg: #{$color-light-bg};
+  --app-surface: #{$color-light-surface};
+  --app-text: #{$color-light-text};
+  --app-primary: #{$color-primary};
+  --app-primary-light: #{$color-primary-light};
+  --app-primary-dark: #{$color-primary-dark};
+
+  // Dark mode
+  &.app-dark {
+    --app-bg: #{$color-dark-bg};
+    --app-surface: #{$color-dark-surface};
+    --app-text: #{$color-dark-text};
+  }
+}
+
+body {
+  font-family: $font-family-base;
+  font-size: $font-size-base;
+  line-height: 1.5;
+  background-color: var(--app-bg);
+  color: var(--app-text);
+  min-height: 100vh;
+  transition: background-color $transition-base, color $transition-base;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// ======================
+// RTL SUPPORT
+// ======================
+html[dir='rtl'] {
+  body {
+    text-align: right;
+    font-family: 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Arial', sans-serif;
+  }
+}
+
+html[lang='ar'] {
+  body {
+    font-family: 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Arial', sans-serif;
+  }
+}
+
+// ======================
+// LINKS
+// ======================
+a {
+  color: var(--app-primary);
+  text-decoration: none;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: var(--app-primary-dark);
+  }
+}
+
+// ======================
+// UTILITY CLASSES
+// ======================
+.text-center {
+  text-align: center;
+}
+
+.text-primary {
+  color: var(--app-primary);
+}
+
+.bg-surface {
+  background-color: var(--app-surface);
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-column {
+  flex-direction: column;
+}
+
+.align-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.gap-1 {
+  gap: $spacing-sm;
+}
+
+.gap-2 {
+  gap: $spacing-md;
+}
+
+.gap-3 {
+  gap: $spacing-lg;
+}
+
+.p-1 {
+  padding: $spacing-sm;
+}
+
+.p-2 {
+  padding: $spacing-md;
+}
+
+.p-3 {
+  padding: $spacing-lg;
+}
+
+.m-1 {
+  margin: $spacing-sm;
+}
+
+.m-2 {
+  margin: $spacing-md;
+}
+
+.m-3 {
+  margin: $spacing-lg;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.h-full {
+  height: 100%;
+}
+
+.min-h-screen {
+  min-height: 100vh;
+}

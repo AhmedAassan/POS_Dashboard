@@ -1,0 +1,62 @@
+@use '../../../styles/tokens' as *;
+
+$header-height: 70px;
+$sidebar-width-expanded: 260px;
+$sidebar-width-collapsed: 72px;
+
+.layout-shell {
+  min-height: 100vh;
+  background-color: var(--app-bg);
+}
+
+.main-content {
+  margin-left: $sidebar-width-expanded;
+  padding-top: $header-height;
+  min-height: 100vh;
+  transition: margin-left $transition-base;
+
+  &.sidebar-collapsed {
+    margin-left: $sidebar-width-collapsed;
+  }
+}
+
+.content-wrapper {
+  padding: $spacing-lg;
+  min-height: calc(100vh - #{$header-height});
+}
+
+// RTL Support
+:host-context([dir='rtl']) {
+  .main-content {
+    margin-left: 0;
+    margin-right: $sidebar-width-expanded;
+
+    &.sidebar-collapsed {
+      margin-left: 0;
+      margin-right: $sidebar-width-collapsed;
+    }
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: $sidebar-width-collapsed;
+
+    &.sidebar-collapsed {
+      margin-left: $sidebar-width-collapsed;
+    }
+  }
+
+  :host-context([dir='rtl']) {
+    .main-content {
+      margin-left: 0;
+      margin-right: $sidebar-width-collapsed;
+
+      &.sidebar-collapsed {
+        margin-left: 0;
+        margin-right: $sidebar-width-collapsed;
+      }
+    }
+  }
+}
