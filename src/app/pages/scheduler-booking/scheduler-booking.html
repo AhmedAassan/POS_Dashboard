@@ -1,4 +1,4 @@
-<!-- scheduler-booking.html - FULL REPLACEMENT -->
+<!-- scheduler-booking.html -->
 
 <mat-sidenav-container class="scheduler-container">
   <mat-sidenav-content class="main-content">
@@ -6,11 +6,30 @@
     <app-calendar-header
       (newAppointment)="openDrawerForCreate()"
       (scrollToNow)="onScrollToNow()" />
-    
-    <!-- Calendar Grid -->
+
+    <!-- Calendar Body -->
     <div class="calendar-wrapper">
-      <app-calendar-grid 
-        (editAppointment)="openDrawerForEdit($event)" />
+      @switch (currentViewMode()) {
+        @case (ViewMode.DAY) {
+          <app-calendar-grid
+            (selectAppointment)="openDrawerForDetails($event)"
+            (editAppointment)="openDrawerForEdit($event)" />
+        }
+
+        @case (ViewMode.WEEK) {
+          <app-calendar-week
+            (dayClick)="onDaySelected($event)"
+            (createForDate)="onCreateForDate($event)"
+            (editAppointment)="openDrawerForDetails($event)" />
+        }
+
+        @case (ViewMode.MONTH) {
+          <app-calendar-month
+            (dayClick)="onDaySelected($event)"
+            (createForDate)="onCreateForDate($event)"
+            (editAppointment)="openDrawerForDetails($event)" />
+        }
+      }
     </div>
   </mat-sidenav-content>
 
@@ -22,14 +41,47 @@
     mode="over"
     position="end"
     class="appointment-drawer">
-    
+
     @if (isDrawerOpen()) {
-      <app-appointment-drawer
-        [appointmentToEdit]="appointmentToEdit()"
-        (close)="closeDrawer()"
-        (created)="onAppointmentCreated()"
-        (updated)="onAppointmentUpdated()"
-        (deleted)="onAppointmentDeleted()" />
+      @switch (drawerMode()) {
+        @case ('details') {
+          @if (selectedAppointmentForDetails(); as apt) {
+            <app-appointment-details-drawer
+              [appointment]="apt"
+              (close)="closeDrawer()"
+              (editRequested)="onEditRequestedFromDetails($event)"
+              (startCheckout)="onStartCheckout($event)" />
+          }
+        }
+
+        @case ('create') {
+          <app-appointment-drawer
+            [appointmentToEdit]="null"
+            (close)="closeDrawer()"
+            (created)="onAppointmentCreated()"
+            (updated)="onAppointmentUpdated()"
+            (deleted)="onAppointmentDeleted()" />
+        }
+
+        @case ('edit') {
+          <app-appointment-drawer
+            [appointmentToEdit]="appointmentToEdit()"
+            (close)="closeDrawer()"
+            (created)="onAppointmentCreated()"
+            (updated)="onAppointmentUpdated()"
+            (deleted)="onAppointmentDeleted()" />
+        }
+
+        @case ('checkout') {
+          @if (selectedAppointmentForDetails(); as apt) {
+            <app-checkout-drawer
+              [appointment]="apt"
+              (close)="closeDrawer()"
+              (backToDetails)="onBackToDetailsFromCheckout()"
+              (checkoutConfirmed)="onCheckoutConfirmed($event)" />
+          }
+        }
+      }
     }
   </mat-sidenav>
 </mat-sidenav-container>

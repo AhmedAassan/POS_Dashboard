@@ -1,7 +1,16 @@
-// services/appointments.service.ts - FULL REPLACEMENT (significant overlap logic added)
+// services/appointments.service.ts
 
 import { Injectable, signal, computed, inject } from '@angular/core';
-import { Appointment, AppointmentView, CalendarConfig, TimeOption } from '../../models/calendar/models.model';
+import {
+  Appointment,
+  AppointmentView,
+  CalendarConfig,
+  CalendarViewMode,
+  TimeOption,
+  DateRange,
+  ApplyPaymentPayload,
+  ServiceItem
+} from '../../models/calendar/models.model';
 import { StaffService } from './staff';
 import { ClientsService } from './clients';
 import { ServicesService } from './services';
@@ -22,7 +31,7 @@ export class AppointmentsService {
     pixelsPerMinute: 1.5  // Height calculation: 1.5px per minute
   };
 
-  // Mock appointments data
+  // Mock appointments data — includes all Stage 1 fields
   private readonly mockAppointments: Appointment[] = [
     {
       id: 'apt-1',
@@ -34,7 +43,13 @@ export class AppointmentsService {
       endTime: '10:00',
       isOnlineBooking: true,
       notes: 'Regular client - prefers organic products',
-      status: 'scheduled'
+      status: 'scheduled',
+      checkoutStatus: 'open',
+      numberOfPersons: 1,
+      serviceType: 'SALON',
+      paymentStatus: 'NONE',
+      depositAmount: 0,
+      paidAmount: 0
     },
     {
       id: 'apt-2',
@@ -45,7 +60,13 @@ export class AppointmentsService {
       startTime: '10:30',
       endTime: '12:00',
       isOnlineBooking: false,
-      status: 'scheduled'
+      status: 'scheduled',
+      checkoutStatus: 'open',
+      numberOfPersons: 1,
+      serviceType: 'SALON',
+      paymentStatus: 'NONE',
+      depositAmount: 0,
+      paidAmount: 0
     },
     {
       id: 'apt-3',
@@ -56,7 +77,14 @@ export class AppointmentsService {
       startTime: '14:00',
       endTime: '15:15',
       isOnlineBooking: true,
-      status: 'scheduled'
+      status: 'scheduled',
+      checkoutStatus: 'open',
+      numberOfPersons: 2,
+      serviceType: 'HOME',
+      paymentStatus: 'DEPOSIT',
+      paymentType: 'KNET',
+      depositAmount: 10,
+      paidAmount: 10
     },
     {
       id: 'apt-4',
@@ -67,7 +95,13 @@ export class AppointmentsService {
       startTime: '09:30',
       endTime: '10:15',
       isOnlineBooking: false,
-      status: 'scheduled'
+      status: 'scheduled',
+      checkoutStatus: 'open',
+      numberOfPersons: 1,
+      serviceType: 'SALON',
+      paymentStatus: 'NONE',
+      depositAmount: 0,
+      paidAmount: 0
     },
     {
       id: 'apt-5',
@@ -78,9 +112,15 @@ export class AppointmentsService {
       startTime: '09:30',
       endTime: '10:30',
       isOnlineBooking: true,
-      status: 'scheduled'
+      status: 'scheduled',
+      checkoutStatus: 'open',
+      numberOfPersons: 1,
+      serviceType: 'SALON',
+      paymentStatus: 'FULL',
+      paymentType: 'CARD',
+      depositAmount: 0,
+      paidAmount: 28
     },
-    // Add overlapping appointment for testing
     {
       id: 'apt-6',
       clientId: 'client-1',
@@ -90,66 +130,237 @@ export class AppointmentsService {
       startTime: '09:15',
       endTime: '09:30',
       isOnlineBooking: false,
-      status: 'scheduled'
+      status: 'scheduled',
+      checkoutStatus: 'open',
+      numberOfPersons: 1,
+      serviceType: 'SALON',
+      paymentStatus: 'NONE',
+      depositAmount: 0,
+      paidAmount: 0
     }
   ];
 
-  // Reactive state
+  // ── Reactive state ──
   private appointmentsSignal = signal<Appointment[]>(this.mockAppointments);
   private selectedDateSignal = signal<Date>(new Date());
+  private selectedViewModeSignal = signal<CalendarViewMode>(CalendarViewMode.DAY);
 
   readonly appointments = this.appointmentsSignal.asReadonly();
   readonly selectedDate = this.selectedDateSignal.asReadonly();
+  readonly selectedViewMode = this.selectedViewModeSignal.asReadonly();
 
-  /**
-   * Generate time options for dropdowns based on config
-   */
+  // ── Time options ──
+
   generateTimeOptions(): TimeOption[] {
     const options: TimeOption[] = [];
-    
+
     for (let hour = this.config.startHour; hour <= this.config.endHour; hour++) {
       for (let minute = 0; minute < 60; minute += this.config.slotDuration) {
-        // Skip if past end hour
         if (hour === this.config.endHour && minute > 0) break;
-        
+
         const value = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
         const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
         const ampm = hour >= 12 ? 'PM' : 'AM';
         const label = `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`;
-        
+
         options.push({ value, label });
       }
     }
-    
+
     return options;
   }
 
+  // ── View mode ──
+
+  setViewMode(mode: CalendarViewMode): void {
+    this.selectedViewModeSignal.set(mode);
+  }
+
   /**
-   * Get enriched appointments for a specific date with positioning and lane calculation
-   * Filtered by selected services
+   * Compute the visible date range for a given date and view mode.
+   * Both start and end are inclusive.
+   * Week starts on Monday (ISO convention).
    */
-  readonly appointmentsForSelectedDate = computed(() => {
-    const date = this.selectedDate();
+  getVisibleDateRange(date: Date, viewMode: CalendarViewMode): DateRange {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+
+    switch (viewMode) {
+      case CalendarViewMode.DAY:
+        return { start: new Date(d), end: new Date(d) };
+
+      case CalendarViewMode.WEEK: {
+        // ISO week: Monday = 0 offset
+        const jsDay = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+        const mondayOffset = jsDay === 0 ? -6 : 1 - jsDay;
+        const start = new Date(d);
+        start.setDate(start.getDate() + mondayOffset);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6);
+        return { start, end };
+      }
+
+      case CalendarViewMode.MONTH: {
+        const start = new Date(d.getFullYear(), d.getMonth(), 1);
+        const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        return { start, end };
+      }
+    }
+  }
+
+  // ── Navigation ──
+
+  next(): void {
+    const current = this.selectedDate();
+    const newDate = new Date(current);
+
+    switch (this.selectedViewMode()) {
+      case CalendarViewMode.DAY:
+        newDate.setDate(newDate.getDate() + 1);
+        break;
+      case CalendarViewMode.WEEK:
+        newDate.setDate(newDate.getDate() + 7);
+        break;
+      case CalendarViewMode.MONTH:
+        newDate.setMonth(newDate.getMonth() + 1);
+        break;
+    }
+
+    this.selectedDateSignal.set(newDate);
+  }
+
+  previous(): void {
+    const current = this.selectedDate();
+    const newDate = new Date(current);
+
+    switch (this.selectedViewMode()) {
+      case CalendarViewMode.DAY:
+        newDate.setDate(newDate.getDate() - 1);
+        break;
+      case CalendarViewMode.WEEK:
+        newDate.setDate(newDate.getDate() - 7);
+        break;
+      case CalendarViewMode.MONTH:
+        newDate.setMonth(newDate.getMonth() - 1);
+        break;
+    }
+
+    this.selectedDateSignal.set(newDate);
+  }
+
+  previousDay(): void {
+    this.previous();
+  }
+
+  nextDay(): void {
+    this.next();
+  }
+
+  goToToday(): void {
+    this.selectedDateSignal.set(new Date());
+  }
+
+  setSelectedDate(date: Date): void {
+    this.selectedDateSignal.set(date);
+  }
+
+  // ── Appointment queries ──
+
+  /**
+   * Get enriched, lane-calculated appointments for a specific date.
+   * Applies all active filters: staff, service IDs, category IDs;
+   * excludes cancelled appointments.
+   *
+   * NOTE: This is a plain method (not a computed) so it can be called
+   * with arbitrary dates from Week / Month views. The computed
+   * `appointmentsForSelectedDate` delegates to this for the current date.
+   * Because it reads signals internally (appointments, selectedStaffIds, etc.)
+   * Angular will still track reactivity when called inside a computed context.
+   */
+  appointmentsForDate(date: Date): AppointmentView[] {
     const appointments = this.appointments();
+    const selectedStaffIds = this.staffService.selectedStaffIds();
     const selectedServiceIds = this.servicesService.selectedServiceIds();
-    
-    // Filter appointments for the selected date and selected services
-    const dateAppointments = appointments.filter(apt => 
-      this.isSameDay(apt.date, date) && 
-      apt.status !== 'cancelled' &&
-      selectedServiceIds.has(apt.serviceId)
-    );
+    const selectedCategoryIds = this.servicesService.selectedCategoryIds();
 
-    // Enrich with view data
+    const dateAppointments = appointments.filter(apt => {
+      if (!this.isSameDay(apt.date, date)) return false;
+      if (apt.status === 'cancelled') return false;
+      if (!selectedStaffIds.has(apt.staffId)) return false;
+      if (!selectedServiceIds.has(apt.serviceId)) return false;
+
+      const service = this.servicesService.getServiceById(apt.serviceId);
+      if (!service || !selectedCategoryIds.has(service.category)) return false;
+
+      return true;
+    });
+
     const enrichedAppointments = dateAppointments.map(apt => this.enrichAppointment(apt));
-
-    // Calculate lane positions for overlapping appointments
     return this.calculateLanes(enrichedAppointments);
+  }
+
+  readonly appointmentsForSelectedDate = computed(() => {
+    return this.appointmentsForDate(this.selectedDate());
   });
 
-  /**
-   * Enrich appointment with resolved references and calculated positioning
-   */
+  // ── Pricing helpers ──
+
+  computeTotal(serviceOrAppointment: ServiceItem | AppointmentView): number {
+    if ('service' in serviceOrAppointment && 'numberOfPersons' in serviceOrAppointment) {
+      const apt = serviceOrAppointment as AppointmentView;
+      const unitPrice = this.servicesService.calculateDiscountedPrice(apt.service);
+      return unitPrice * apt.numberOfPersons;
+    }
+
+    const service = serviceOrAppointment as ServiceItem;
+    return this.servicesService.calculateDiscountedPrice(service);
+  }
+
+  computeRemaining(apt: AppointmentView): number {
+    const total = this.computeTotal(apt);
+    return Math.max(0, total - apt.paidAmount);
+  }
+
+  applyPayment(appointmentId: string, payload: ApplyPaymentPayload): void {
+    this.appointmentsSignal.update(appointments =>
+      appointments.map(apt => {
+        if (apt.id !== appointmentId) return apt;
+
+        const service = this.servicesService.getServiceById(apt.serviceId);
+        if (!service) return apt;
+
+        const updatedPaidAmount = apt.paidAmount + payload.amount;
+        const unitPrice = this.servicesService.calculateDiscountedPrice(service);
+        const total = unitPrice * apt.numberOfPersons;
+        const remaining = Math.max(0, total - updatedPaidAmount);
+
+        let newPaymentStatus: 'NONE' | 'DEPOSIT' | 'FULL';
+        if (remaining <= 0) {
+          newPaymentStatus = 'FULL';
+        } else if (updatedPaidAmount > 0) {
+          newPaymentStatus = 'DEPOSIT';
+        } else {
+          newPaymentStatus = 'NONE';
+        }
+
+        const depositAmount = newPaymentStatus === 'DEPOSIT'
+          ? updatedPaidAmount
+          : apt.depositAmount;
+
+        return {
+          ...apt,
+          paidAmount: updatedPaidAmount,
+          paymentType: payload.paymentType,
+          paymentStatus: newPaymentStatus,
+          depositAmount,
+          voucherCode: payload.voucherCode ?? apt.voucherCode
+        };
+      })
+    );
+  }
+
+  // ── Enrichment ──
+
   private enrichAppointment(appointment: Appointment): AppointmentView {
     const client = this.clientsService.getClientById(appointment.clientId)!;
     const service = this.servicesService.getServiceById(appointment.serviceId)!;
@@ -158,6 +369,8 @@ export class AppointmentsService {
     const topPosition = this.calculateTopPosition(appointment.startTime);
     const height = this.calculateHeight(appointment.startTime, appointment.endTime);
     const discountedPrice = this.servicesService.calculateDiscountedPrice(service);
+    const totalPrice = discountedPrice * appointment.numberOfPersons;
+    const remainingAmount = Math.max(0, totalPrice - appointment.paidAmount);
 
     return {
       ...appointment,
@@ -167,19 +380,18 @@ export class AppointmentsService {
       topPosition,
       height,
       discountedPrice,
-      laneIndex: 0,  // Will be calculated in calculateLanes
-      laneCount: 1   // Will be calculated in calculateLanes
+      totalPrice,
+      remainingAmount,
+      laneIndex: 0,
+      laneCount: 1
     };
   }
 
-  /**
-   * Calculate lane positions for overlapping appointments within each staff column
-   * Uses a greedy algorithm to assign lanes, then propagates lane count to overlap groups
-   */
+  // ── Lane calculation ──
+
   private calculateLanes(appointments: AppointmentView[]): AppointmentView[] {
-    // Group appointments by staff
     const byStaff = new Map<string, AppointmentView[]>();
-    
+
     for (const apt of appointments) {
       const staffApts = byStaff.get(apt.staffId) || [];
       staffApts.push(apt);
@@ -188,24 +400,19 @@ export class AppointmentsService {
 
     const result: AppointmentView[] = [];
 
-    // Process each staff's appointments
-    for (const [staffId, staffApts] of byStaff) {
-      // Sort by start time, then by end time
+    for (const [_staffId, staffApts] of byStaff) {
       staffApts.sort((a, b) => {
         const startDiff = this.timeToMinutes(a.startTime) - this.timeToMinutes(b.startTime);
         if (startDiff !== 0) return startDiff;
         return this.timeToMinutes(a.endTime) - this.timeToMinutes(b.endTime);
       });
 
-      // Greedy lane assignment
-      // lanes[i] contains the end time of the last appointment in lane i
       const lanes: number[] = [];
       const laneAssignments = new Map<string, number>();
 
       for (const apt of staffApts) {
         const startMinutes = this.timeToMinutes(apt.startTime);
-        
-        // Find first lane where this appointment fits (no overlap)
+
         let assignedLane = -1;
         for (let i = 0; i < lanes.length; i++) {
           if (lanes[i] <= startMinutes) {
@@ -214,22 +421,17 @@ export class AppointmentsService {
           }
         }
 
-        // If no lane found, create a new one
         if (assignedLane === -1) {
           assignedLane = lanes.length;
           lanes.push(0);
         }
 
-        // Update lane end time
         lanes[assignedLane] = this.timeToMinutes(apt.endTime);
         laneAssignments.set(apt.id, assignedLane);
       }
 
-      // Now find overlap groups and propagate lane count
-      // Build overlap graph: two appointments overlap if their time ranges intersect
       const overlapGroups = this.findOverlapGroups(staffApts);
 
-      // For each group, find max lane index + 1 = lane count
       for (const group of overlapGroups) {
         let maxLane = 0;
         for (const apt of group) {
@@ -237,7 +439,6 @@ export class AppointmentsService {
         }
         const laneCount = maxLane + 1;
 
-        // Update all appointments in this group
         for (const apt of group) {
           apt.laneIndex = laneAssignments.get(apt.id) || 0;
           apt.laneCount = laneCount;
@@ -250,15 +451,11 @@ export class AppointmentsService {
     return result;
   }
 
-  /**
-   * Find groups of overlapping appointments using Union-Find approach
-   */
   private findOverlapGroups(appointments: AppointmentView[]): AppointmentView[][] {
     if (appointments.length === 0) return [];
 
-    // Parent array for union-find
     const parent = new Map<string, string>();
-    
+
     const find = (id: string): string => {
       if (!parent.has(id)) parent.set(id, id);
       if (parent.get(id) !== id) {
@@ -275,7 +472,6 @@ export class AppointmentsService {
       }
     };
 
-    // Check all pairs for overlap
     for (let i = 0; i < appointments.length; i++) {
       for (let j = i + 1; j < appointments.length; j++) {
         if (this.appointmentsOverlap(appointments[i], appointments[j])) {
@@ -284,7 +480,6 @@ export class AppointmentsService {
       }
     }
 
-    // Group by root
     const groups = new Map<string, AppointmentView[]>();
     for (const apt of appointments) {
       const root = find(apt.id);
@@ -296,18 +491,16 @@ export class AppointmentsService {
     return Array.from(groups.values());
   }
 
-  /**
-   * Check if two appointments overlap in time
-   */
   private appointmentsOverlap(a: AppointmentView, b: AppointmentView): boolean {
     const aStart = this.timeToMinutes(a.startTime);
     const aEnd = this.timeToMinutes(a.endTime);
     const bStart = this.timeToMinutes(b.startTime);
     const bEnd = this.timeToMinutes(b.endTime);
 
-    // Overlap: start1 < end2 AND end1 > start2
     return aStart < bEnd && aEnd > bStart;
   }
+
+  // ── Position / height helpers ──
 
   calculateTopPosition(startTime: string): number {
     const [hours, minutes] = startTime.split(':').map(Number);
@@ -318,30 +511,30 @@ export class AppointmentsService {
   calculateHeight(startTime: string, endTime: string): number {
     const [startHours, startMinutes] = startTime.split(':').map(Number);
     const [endHours, endMinutes] = endTime.split(':').map(Number);
-    
+
     const startTotalMinutes = startHours * 60 + startMinutes;
     const endTotalMinutes = endHours * 60 + endMinutes;
     const duration = endTotalMinutes - startTotalMinutes;
-    
+
     return Math.max(duration * this.config.pixelsPerMinute, 30);
   }
 
   generateTimeSlots(): { time: string; label: string; isHour: boolean }[] {
     const slots: { time: string; label: string; isHour: boolean }[] = [];
-    
+
     for (let hour = this.config.startHour; hour < this.config.endHour; hour++) {
       for (let minute = 0; minute < 60; minute += this.config.slotDuration) {
         const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
         const isHour = minute === 0;
-        
+
         const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
         const ampm = hour >= 12 ? 'PM' : 'AM';
         const label = `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`;
-        
+
         slots.push({ time: timeString, label, isHour });
       }
     }
-    
+
     return slots;
   }
 
@@ -354,36 +547,10 @@ export class AppointmentsService {
     return this.config.slotDuration * this.config.pixelsPerMinute;
   }
 
-  setSelectedDate(date: Date): void {
-    this.selectedDateSignal.set(date);
-  }
-
-  previousDay(): void {
-    const current = this.selectedDate();
-    const newDate = new Date(current);
-    newDate.setDate(newDate.getDate() - 1);
-    this.selectedDateSignal.set(newDate);
-  }
-
-  nextDay(): void {
-    const current = this.selectedDate();
-    const newDate = new Date(current);
-    newDate.setDate(newDate.getDate() + 1);
-    this.selectedDateSignal.set(newDate);
-  }
-
-  goToToday(): void {
-    this.selectedDateSignal.set(new Date());
-  }
-
-  private isSameDay(date1: Date, date2: Date): boolean {
-    return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
-  }
+  // ── Conflict detection ──
 
   checkConflict(staffId: string, date: Date, startTime: string, endTime: string, excludeId?: string): Appointment | null {
-    const appointments = this.appointments().filter(apt => 
+    const appointments = this.appointments().filter(apt =>
       apt.staffId === staffId &&
       this.isSameDay(apt.date, date) &&
       apt.status !== 'cancelled' &&
@@ -405,6 +572,8 @@ export class AppointmentsService {
     return null;
   }
 
+  // ── Time utilities ──
+
   timeToMinutes(time: string): number {
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + minutes;
@@ -418,9 +587,6 @@ export class AppointmentsService {
     return `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
   }
 
-  /**
-   * Snap time to nearest increment based on config
-   */
   snapToIncrement(time: string): string {
     const [hours, minutes] = time.split(':').map(Number);
     const snappedMinutes = Math.round(minutes / this.config.slotDuration) * this.config.slotDuration;
@@ -429,11 +595,37 @@ export class AppointmentsService {
     return `${adjustedHours.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
   }
 
-  createAppointment(data: Omit<Appointment, 'id' | 'status'>): Appointment {
+  // ── Date utilities ──
+
+  private isSameDay(date1: Date, date2: Date): boolean {
+    return date1.getFullYear() === date2.getFullYear() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getDate() === date2.getDate();
+  }
+
+  isDateInRange(date: Date, range: DateRange): boolean {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const start = new Date(range.start);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(range.end);
+    end.setHours(0, 0, 0, 0);
+    return d >= start && d <= end;
+  }
+
+  // ── CRUD ──
+
+  createAppointment(data: Omit<Appointment, 'id' | 'status' | 'checkoutStatus'>): Appointment {
     const newAppointment: Appointment = {
       ...data,
       id: `apt-${Date.now()}`,
-      status: 'scheduled'
+      status: 'scheduled',
+      checkoutStatus: 'open',
+      numberOfPersons: data.numberOfPersons ?? 1,
+      serviceType: data.serviceType ?? 'SALON',
+      paymentStatus: data.paymentStatus ?? 'NONE',
+      depositAmount: data.depositAmount ?? 0,
+      paidAmount: data.paidAmount ?? 0
     };
 
     this.appointmentsSignal.update(appointments => [...appointments, newAppointment]);
@@ -456,9 +648,6 @@ export class AppointmentsService {
     return this.appointments().find(apt => apt.id === id);
   }
 
-  /**
-   * Get minutes position for scroll-to-time (e.g., 9 AM)
-   */
   getScrollPositionForTime(time: string): number {
     return this.calculateTopPosition(time);
   }

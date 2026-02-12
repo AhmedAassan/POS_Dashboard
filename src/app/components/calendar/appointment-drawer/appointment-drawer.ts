@@ -10,6 +10,9 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged, startWith } from 'rxjs/operators';
 
@@ -17,7 +20,14 @@ import { ClientsService } from '../../../services/calendar/clients';
 import { ServicesService } from '../../../services/calendar/services';
 import { StaffService } from '../../../services/calendar/staff';
 import { AppointmentsService } from '../../../services/calendar/appointments';
-import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../../models/calendar/models.model';
+import {
+  Client,
+  ServiceItem,
+  Staff,
+  AppointmentView,
+  TimeOption,
+  ServiceType
+} from '../../../models/calendar/models.model';
 
 @Component({
   selector: 'app-appointment-drawer',
@@ -31,7 +41,10 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
     MatSelectModule,
     MatButtonModule,
     MatIconModule,
-    MatDividerModule
+    MatDividerModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
+    MatButtonToggleModule
   ],
   template: `
     <div class="drawer-container">
@@ -134,12 +147,10 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
                 @for (service of filteredServices(); track service.id) {
                   <mat-option [value]="service" class="service-option-item">
                     <div class="service-option-row">
-                      <!-- Color bar accent -->
                       <div class="service-color-bar"
                            [style.background-color]="service.colorHex">
                       </div>
 
-                      <!-- LEFT block -->
                       <div class="service-left">
                         <div class="service-name-line">
                           <span class="service-name">{{ service.name }}</span>
@@ -160,7 +171,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
                         </div>
                       </div>
 
-                      <!-- RIGHT block: pricing pinned to end -->
                       <div class="service-pricing">
                         <span class="service-final-price"
                               [class.has-discount]="service.discount > 0">
@@ -198,7 +208,7 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
                     <mat-icon>payments</mat-icon>
                     @if (selectedService()!.discount > 0) {
                       <span class="original-price">{{ selectedService()!.currency }} {{ selectedService()!.price }}</span>
-                      <span class="discounted-price">{{ selectedService()!.currency }} {{ discountedPrice() }}</span>
+                      <span class="discounted-price">{{ selectedService()!.currency }} {{ unitDiscountedPrice() }}</span>
                       <span class="discount-label">{{ selectedService()!.discount }}% off</span>
                     } @else {
                       {{ selectedService()!.currency }} {{ selectedService()!.price }}
@@ -237,12 +247,20 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
 
           <mat-divider></mat-divider>
 
-          <!-- Time Selection -->
+          <!-- Date & Time Selection -->
           <section class="form-section">
             <h3 class="section-title">
               <mat-icon>schedule</mat-icon>
-              Time
+              Date & Time
             </h3>
+
+            <!-- Date picker -->
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Appointment Date</mat-label>
+              <input matInput [matDatepicker]="datePicker" formControlName="date">
+              <mat-datepicker-toggle matIconSuffix [for]="datePicker"></mat-datepicker-toggle>
+              <mat-datepicker #datePicker></mat-datepicker>
+            </mat-form-field>
 
             <div class="time-inputs">
               <mat-form-field appearance="outline" class="time-field">
@@ -287,6 +305,55 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
 
           <mat-divider></mat-divider>
 
+          <!-- Service Type & Number of Persons -->
+          <section class="form-section">
+            <h3 class="section-title">
+              <mat-icon>tune</mat-icon>
+              Options
+            </h3>
+
+            <!-- Service Type toggle -->
+            <div class="option-row">
+              <span class="option-label">Service Type</span>
+              <mat-button-toggle-group
+                formControlName="serviceType"
+                class="service-type-toggle"
+                hideSingleSelectionIndicator>
+                <mat-button-toggle value="SALON">
+                  <mat-icon>store</mat-icon>
+                  Salon
+                </mat-button-toggle>
+                <mat-button-toggle value="HOME">
+                  <mat-icon>home</mat-icon>
+                  Home
+                </mat-button-toggle>
+              </mat-button-toggle-group>
+            </div>
+
+            <!-- Number of Persons -->
+            <div class="option-row">
+              <span class="option-label">Number of Persons</span>
+              <div class="persons-control">
+                <button
+                  mat-icon-button
+                  (click)="decrementPersons()"
+                  [disabled]="form.get('numberOfPersons')!.value <= 1"
+                  class="persons-btn">
+                  <mat-icon>remove</mat-icon>
+                </button>
+                <span class="persons-value">{{ form.get('numberOfPersons')!.value }}</span>
+                <button
+                  mat-icon-button
+                  (click)="incrementPersons()"
+                  class="persons-btn">
+                  <mat-icon>add</mat-icon>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <mat-divider></mat-divider>
+
           <!-- Notes -->
           <section class="form-section">
             <h3 class="section-title">
@@ -315,14 +382,22 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
             <span class="total-label">Total</span>
             <div class="total-price">
               @if (selectedService()?.discount && selectedService()!.discount > 0) {
-                <span class="original-total">{{ selectedService()!.currency }} {{ selectedService()!.price }}</span>
+                <span class="original-total">
+                  {{ selectedService()!.currency }}
+                  {{ (selectedService()!.price * form.get('numberOfPersons')!.value).toFixed(2) }}
+                </span>
               }
-              <span class="final-total">{{ selectedService()?.currency || 'KWD' }} {{ discountedPrice() }}</span>
+              <span class="final-total">
+                {{ selectedService()?.currency || 'KWD' }} {{ totalPrice() }}
+              </span>
             </div>
           </div>
           <div class="summary-text">
             @if (selectedService()) {
               {{ formatDuration(selectedService()!.duration) }}, 1 service
+              @if (form.get('numberOfPersons')!.value > 1) {
+                , {{ form.get('numberOfPersons')!.value }} persons
+              }
             } @else {
               No service selected
             }
@@ -353,11 +428,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
     </div>
   `,
   styles: [`
-    /* ============================================================
-       ANGULAR MATERIAL OVERLAY FIX
-       Force mat-option internal text wrapper to full width
-       so our grid layout works edge-to-edge.
-       ============================================================ */
     ::ng-deep .service-autocomplete-panel .mat-mdc-option .mdc-list-item__primary-text,
     ::ng-deep .service-autocomplete-panel .mat-mdc-option .mat-mdc-option-text {
       width: 100% !important;
@@ -381,7 +451,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       background-color: #f8fafc !important;
     }
 
-    /* Subtle shadow on the panel itself */
     ::ng-deep .service-autocomplete-panel.mat-mdc-autocomplete-panel {
       border-radius: 12px !important;
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08),
@@ -391,9 +460,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       max-height: 340px !important;
     }
 
-    /* ============================================================
-       DRAWER LAYOUT
-       ============================================================ */
     .drawer-container {
       display: flex;
       flex-direction: column;
@@ -447,7 +513,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       width: 100%;
     }
 
-    /* ===== CLIENT OPTION STYLES ===== */
     .client-option {
       display: flex;
       flex-direction: column;
@@ -537,10 +602,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       }
     }
 
-    /* =============================================================
-       SERVICE OPTION — REDESIGNED LAYOUT
-       3-column grid: color-bar | info | price
-       ============================================================= */
     .service-option-row {
       display: grid;
       grid-template-columns: 4px 1fr 100px;
@@ -551,7 +612,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       overflow: hidden;
     }
 
-    /* ---- Vertical color bar (left edge accent) ---- */
     .service-color-bar {
       grid-area: bar;
       width: 4px;
@@ -559,7 +619,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       align-self: stretch;
     }
 
-    /* ---- LEFT info block ---- */
     .service-left {
       grid-area: left;
       display: flex;
@@ -570,7 +629,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       min-width: 0;
     }
 
-    /* Row 1: name + category badge on same line */
     .service-name-line {
       display: flex;
       align-items: center;
@@ -606,7 +664,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       letter-spacing: 0.01em;
     }
 
-    /* Row 2: duration + discount tag inline */
     .service-meta-row {
       display: flex;
       align-items: center;
@@ -639,7 +696,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       line-height: 1.4;
     }
 
-    /* Tiny icons inside meta row */
     .meta-icon {
       font-size: 13px !important;
       width: 13px !important;
@@ -647,7 +703,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       line-height: 13px;
     }
 
-    /* ---- RIGHT price block (fixed width, pinned to far right) ---- */
     .service-pricing {
       grid-area: price;
       display: flex;
@@ -696,7 +751,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       margin-top: 1px;
     }
 
-    /* ===== SERVICE SUMMARY (SELECTED) ===== */
     .service-summary {
       background: #faf5ff;
       border: 1px solid #e9d5ff;
@@ -755,7 +809,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       }
     }
 
-    /* ===== STAFF OPTION ===== */
     .staff-option {
       display: flex;
       align-items: center;
@@ -774,7 +827,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       font-weight: 600;
     }
 
-    /* ===== TIME INPUTS ===== */
     .time-inputs {
       display: flex;
       align-items: center;
@@ -821,6 +873,75 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
         color: #f59e0b;
         flex-shrink: 0;
       }
+    }
+
+    /* ===== OPTIONS SECTION ===== */
+    .option-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    .option-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+    }
+
+    .service-type-toggle {
+      ::ng-deep .mat-button-toggle-label-content {
+        padding: 0 12px;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 32px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      ::ng-deep .mat-button-toggle-checked {
+        background-color: #3b82f6;
+        color: white;
+      }
+
+      mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+      }
+    }
+
+    .persons-control {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #f3f4f6;
+      border-radius: 8px;
+      padding: 2px;
+    }
+
+    .persons-btn {
+      width: 32px;
+      height: 32px;
+
+      mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+      }
+    }
+
+    .persons-value {
+      min-width: 32px;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 600;
+      color: #1f2937;
     }
 
     /* ===== FOOTER ===== */
@@ -885,7 +1006,6 @@ import { Client, ServiceItem, Staff, AppointmentView, TimeOption } from '../../.
       }
     }
 
-    /* ===== SCROLLBAR ===== */
     .drawer-content::-webkit-scrollbar {
       width: 6px;
     }
@@ -951,9 +1071,12 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
       clientSearch: ['', Validators.required],
       serviceSearch: ['', Validators.required],
       staff: [null, Validators.required],
+      date: [this.appointmentsService.selectedDate(), Validators.required],
       startTime: ['09:00', Validators.required],
       endTime: ['10:00', Validators.required],
-      notes: ['']
+      notes: [''],
+      serviceType: ['SALON' as ServiceType, Validators.required],
+      numberOfPersons: [1, [Validators.required, Validators.min(1)]]
     });
   }
 
@@ -961,6 +1084,7 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     this.timeOptions.set(this.appointmentsService.generateTimeOptions());
     this.updateEndTimeOptions();
 
+    // Client search (RxJS for valueChanges — allowed per rules)
     const clientSub = this.form.get('clientSearch')!.valueChanges.pipe(
       startWith(''),
       debounceTime(200),
@@ -972,6 +1096,7 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     });
     this.subscriptions.push(clientSub);
 
+    // Service search
     const serviceSub = this.form.get('serviceSearch')!.valueChanges.pipe(
       startWith(''),
       debounceTime(200),
@@ -983,6 +1108,7 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     });
     this.subscriptions.push(serviceSub);
 
+    // Start time changes → update end time options, auto-calc end, validate, conflict
     const startTimeSub = this.form.get('startTime')!.valueChanges.subscribe(() => {
       this.updateEndTimeOptions();
       this.updateEndTimeFromDuration();
@@ -991,16 +1117,24 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     });
     this.subscriptions.push(startTimeSub);
 
+    // End time changes → validate + conflict
     const endTimeSub = this.form.get('endTime')!.valueChanges.subscribe(() => {
       this.validateTime();
       this.checkConflict();
     });
     this.subscriptions.push(endTimeSub);
 
+    // Staff changes → conflict
     const staffSub = this.form.get('staff')!.valueChanges.subscribe(() => {
       this.checkConflict();
     });
     this.subscriptions.push(staffSub);
+
+    // Date changes → conflict (uses form date, not selectedDate)
+    const dateSub = this.form.get('date')!.valueChanges.subscribe(() => {
+      this.checkConflict();
+    });
+    this.subscriptions.push(dateSub);
 
     this.filteredClients.set(this.clientsService.clients());
     this.filteredServices.set(this.servicesService.services());
@@ -1018,9 +1152,12 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
       clientSearch: apt.client,
       serviceSearch: apt.service,
       staff: apt.staff,
+      date: apt.date,
       startTime: apt.startTime,
       endTime: apt.endTime,
-      notes: apt.notes || ''
+      notes: apt.notes || '',
+      serviceType: apt.serviceType,
+      numberOfPersons: apt.numberOfPersons
     }, { emitEvent: false });
 
     this.updateEndTimeOptions();
@@ -1052,13 +1189,13 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     return s1 && s2 ? s1.id === s2.id : s1 === s2;
   };
 
-  onClientSelected(event: any): void {
-    const client = event.option.value as Client;
+  onClientSelected(event: { option: { value: Client } }): void {
+    const client = event.option.value;
     this.selectedClient.set(client);
   }
 
-  onServiceSelected(event: any): void {
-    const service = event.option.value as ServiceItem;
+  onServiceSelected(event: { option: { value: ServiceItem } }): void {
+    const service = event.option.value;
     this.selectedService.set(service);
     this.updateEndTimeFromDuration();
   }
@@ -1073,10 +1210,20 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     this.form.get('serviceSearch')!.setValue('');
   }
 
-  discountedPrice = computed(() => {
+  /** Unit discounted price (single person) */
+  unitDiscountedPrice = computed(() => {
     const service = this.selectedService();
     if (!service) return '0.00';
     return this.servicesService.calculateDiscountedPrice(service).toFixed(2);
+  });
+
+  /** Total price = unit discounted price × numberOfPersons */
+  totalPrice = computed(() => {
+    const service = this.selectedService();
+    if (!service) return '0.00';
+    const unit = this.servicesService.calculateDiscountedPrice(service);
+    const persons = this.form?.get('numberOfPersons')?.value ?? 1;
+    return (unit * persons).toFixed(2);
   });
 
   getServiceDiscountedPrice(service: ServiceItem): string {
@@ -1094,6 +1241,18 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     const discounted = service.price * (1 - service.discount / 100);
     const amountOff = service.price - discounted;
     return amountOff.toFixed(2);
+  }
+
+  incrementPersons(): void {
+    const current = this.form.get('numberOfPersons')!.value as number;
+    this.form.get('numberOfPersons')!.setValue(current + 1);
+  }
+
+  decrementPersons(): void {
+    const current = this.form.get('numberOfPersons')!.value as number;
+    if (current > 1) {
+      this.form.get('numberOfPersons')!.setValue(current - 1);
+    }
   }
 
   private updateEndTimeFromDuration(): void {
@@ -1126,15 +1285,20 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Conflict detection uses the DATE from the form, not the global selectedDate.
+   */
   private checkConflict(): void {
     const staff = this.form.get('staff')?.value as Staff;
     const startTime = this.form.get('startTime')?.value;
     const endTime = this.form.get('endTime')?.value;
-    const date = this.appointmentsService.selectedDate();
+    const formDate = this.form.get('date')?.value as Date;
     const editingId = this.appointmentToEdit()?.id;
 
-    if (staff && startTime && endTime && !this.timeError()) {
-      const conflict = this.appointmentsService.checkConflict(staff.id, date, startTime, endTime, editingId);
+    if (staff && startTime && endTime && formDate && !this.timeError()) {
+      const conflict = this.appointmentsService.checkConflict(
+        staff.id, formDate, startTime, endTime, editingId
+      );
       if (conflict) {
         const client = this.clientsService.getClientById(conflict.clientId);
         this.conflictWarning.set(
@@ -1183,18 +1347,24 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     const client = this.selectedClient()!;
     const service = this.selectedService()!;
     const staff = this.form.get('staff')!.value as Staff;
-    const startTime = this.form.get('startTime')!.value;
-    const endTime = this.form.get('endTime')!.value;
-    const notes = this.form.get('notes')!.value;
+    const date = this.form.get('date')!.value as Date;
+    const startTime = this.form.get('startTime')!.value as string;
+    const endTime = this.form.get('endTime')!.value as string;
+    const notes = this.form.get('notes')!.value as string;
+    const serviceType = this.form.get('serviceType')!.value as ServiceType;
+    const numberOfPersons = this.form.get('numberOfPersons')!.value as number;
 
     if (this.isEditMode()) {
       this.appointmentsService.updateAppointment(this.appointmentToEdit()!.id, {
         clientId: client.id,
         serviceId: service.id,
         staffId: staff.id,
+        date,
         startTime,
         endTime,
-        notes: notes || undefined
+        notes: notes || undefined,
+        serviceType,
+        numberOfPersons
       });
       this.updated.emit();
     } else {
@@ -1202,11 +1372,16 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
         clientId: client.id,
         serviceId: service.id,
         staffId: staff.id,
-        date: this.appointmentsService.selectedDate(),
+        date,
         startTime,
         endTime,
         isOnlineBooking: false,
-        notes: notes || undefined
+        notes: notes || undefined,
+        serviceType,
+        numberOfPersons,
+        paymentStatus: 'NONE',
+        depositAmount: 0,
+        paidAmount: 0
       });
       this.created.emit();
     }
@@ -1239,9 +1414,12 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
       clientSearch: '',
       serviceSearch: '',
       staff: null,
+      date: this.appointmentsService.selectedDate(),
       startTime: '09:00',
       endTime: '10:00',
-      notes: ''
+      notes: '',
+      serviceType: 'SALON',
+      numberOfPersons: 1
     });
     this.selectedClient.set(null);
     this.selectedService.set(null);

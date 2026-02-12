@@ -30,6 +30,25 @@ export interface ServiceItem {
   currency: string;
 }
 
+/** Where the service is performed */
+export type ServiceType = 'SALON' | 'HOME';
+
+/** Payment collection status */
+export type PaymentStatus = 'NONE' | 'DEPOSIT' | 'FULL';
+
+/** Payment method used */
+export type PaymentType = 'CASH' | 'LINK' | 'KNET' | 'CARD';
+
+/** Checkout workflow status — independent of appointment lifecycle status */
+export type CheckoutStatus = 'open' | 'checked_out';
+
+/** Calendar view granularity */
+export enum CalendarViewMode {
+  DAY = 'DAY',
+  WEEK = 'WEEK',
+  MONTH = 'MONTH'
+}
+
 export interface Appointment {
   id: string;
   clientId: string;
@@ -40,7 +59,23 @@ export interface Appointment {
   endTime: string;   // HH:mm format
   isOnlineBooking: boolean;
   notes?: string;
+
+  // Lifecycle status
   status: 'scheduled' | 'completed' | 'cancelled' | 'no-show';
+
+  // Checkout workflow status (separate from lifecycle)
+  checkoutStatus: CheckoutStatus;
+
+  // Stage 1 additions
+  numberOfPersons: number;   // min 1, default 1
+  serviceType: ServiceType;  // default 'SALON'
+
+  // Payment fields
+  paymentStatus: PaymentStatus;      // default 'NONE'
+  paymentType?: PaymentType;         // required only when paymentStatus !== 'NONE'
+  depositAmount: number;             // meaningful only when paymentStatus === 'DEPOSIT'
+  paidAmount: number;                // running total of payments collected, default 0
+  voucherCode?: string;
 }
 
 // Enriched appointment with resolved references for display
@@ -56,6 +91,12 @@ export interface AppointmentView extends Appointment {
   laneCount: number;      // total lanes in overlap group
 
   discountedPrice: number;
+
+  /** Total price (discounted unit price × numberOfPersons) */
+  totalPrice: number;
+
+  /** Remaining amount to be paid (totalPrice − paidAmount, never < 0) */
+  remainingAmount: number;
 }
 
 export interface Location {
@@ -85,6 +126,8 @@ export interface CreateAppointmentForm {
   startTime: string;
   endTime: string;
   notes: string;
+  numberOfPersons: number;
+  serviceType: ServiceType;
 }
 
 // Time option for dropdowns
@@ -92,4 +135,20 @@ export interface TimeOption {
   value: string;   // HH:mm format
   label: string;   // Display format (e.g., "9:00 AM")
   disabled?: boolean;
+}
+
+/** Payload for AppointmentsService.applyPayment() */
+export interface ApplyPaymentPayload {
+  amount: number;
+  paymentType: PaymentType;
+  as: 'DEPOSIT' | 'FULL';
+  voucherCode?: string;
+}
+
+/** Result of getVisibleDateRange() */
+export interface DateRange {
+  /** First visible date (inclusive) */
+  start: Date;
+  /** Last visible date (inclusive) */
+  end: Date;
 }

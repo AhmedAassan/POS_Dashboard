@@ -1,4 +1,4 @@
-// components/appointment-block/appointment-block.component.ts - PATCHED (hover styling)
+// components/appointment-block/appointment-block.component.ts
 
 import { Component, input, output, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -11,9 +11,10 @@ import { AppointmentView } from '../../../models/calendar/models.model';
   standalone: true,
   imports: [CommonModule, MatTooltipModule, MatIconModule],
   template: `
-    <div 
+    <div
       class="appointment-block"
       [class.is-hovered]="isHovered()"
+      [class.is-checked-out]="appointment().checkoutStatus === 'checked_out'"
       [style.top.px]="appointment().topPosition"
       [style.height.px]="appointment().height"
       [style.left]="leftPosition()"
@@ -29,13 +30,13 @@ import { AppointmentView } from '../../../models/calendar/models.model';
       (mouseleave)="isHovered.set(false)"
       (dblclick)="editAppointment.emit(appointment())"
       (click)="selectAppointment.emit(appointment())">
-      
+
       <!-- Staff color top bar -->
       <div class="staff-bar"></div>
-      
+
       <!-- Service color left bar -->
       <div class="service-bar"></div>
-      
+
       <div class="block-content" [class.compact]="isCompact()">
         <!-- Client Name -->
         <div class="client-name">
@@ -57,11 +58,31 @@ import { AppointmentView } from '../../../models/calendar/models.model';
           {{ appointment().service.name }}
         </div>
 
-        <!-- Online Booking Badge -->
-        @if (appointment().isOnlineBooking && !isCompact()) {
-          <div class="online-badge">
-            <mat-icon>language</mat-icon>
-            <span>Online</span>
+        <!-- Status badges row -->
+        @if (!isCompact()) {
+          <div class="badges-row">
+            @if (appointment().isOnlineBooking) {
+              <div class="online-badge">
+                <mat-icon>language</mat-icon>
+                <span>Online</span>
+              </div>
+            }
+            @if (appointment().checkoutStatus === 'checked_out') {
+              <div class="checkout-badge">
+                <mat-icon>verified</mat-icon>
+              </div>
+            }
+            @if (appointment().serviceType === 'HOME') {
+              <div class="home-badge">
+                <mat-icon>home</mat-icon>
+              </div>
+            }
+            @if (appointment().numberOfPersons > 1) {
+              <div class="persons-badge-inline">
+                <mat-icon>group</mat-icon>
+                <span>{{ appointment().numberOfPersons }}</span>
+              </div>
+            }
           </div>
         }
       </div>
@@ -75,33 +96,33 @@ import { AppointmentView } from '../../../models/calendar/models.model';
       overflow: hidden;
       z-index: 1;
       box-sizing: border-box;
-      
-      /* Default state: light service color fill */
+
       background-color: var(--service-color-light);
       border: 1px solid var(--service-color);
       border-left: 4px solid var(--service-color);
-      
-      /* Smooth transitions */
-      transition: 
+
+      transition:
         background-color 0.15s ease,
         border-color 0.15s ease,
         box-shadow 0.2s ease,
         transform 0.15s ease;
 
-      /* Hover state */
       &:hover,
       &.is-hovered {
         background-color: var(--service-color-medium);
         border-color: var(--service-color);
-        box-shadow: 
+        box-shadow:
           0 4px 12px rgba(0, 0, 0, 0.15),
           0 2px 4px rgba(0, 0, 0, 0.1);
         transform: translateY(-1px);
         z-index: 10;
       }
+
+      &.is-checked-out {
+        opacity: 0.75;
+      }
     }
-    
-    /* Staff color indicator bar at top */
+
     .staff-bar {
       position: absolute;
       top: 0;
@@ -112,7 +133,6 @@ import { AppointmentView } from '../../../models/calendar/models.model';
       border-radius: 6px 6px 0 0;
     }
 
-    /* Service color indicator bar on left (behind content) */
     .service-bar {
       position: absolute;
       top: 0;
@@ -126,11 +146,9 @@ import { AppointmentView } from '../../../models/calendar/models.model';
       position: relative;
       padding: 8px 10px 8px 12px;
       padding-top: 10px;
-
       height: 100%;
       display: flex;
       flex-direction: column;
-
       gap: 3px;
       overflow: hidden;
       z-index: 1;
@@ -193,6 +211,14 @@ import { AppointmentView } from '../../../models/calendar/models.model';
       text-overflow: ellipsis;
     }
 
+    .badges-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: auto;
+      flex-wrap: wrap;
+    }
+
     .online-badge {
       display: flex;
       align-items: center;
@@ -200,7 +226,45 @@ import { AppointmentView } from '../../../models/calendar/models.model';
       font-size: 9px;
       color: #2563eb;
       font-weight: 500;
-      margin-top: auto;
+
+      mat-icon {
+        font-size: 11px;
+        width: 11px;
+        height: 11px;
+      }
+    }
+
+    .checkout-badge {
+      display: flex;
+      align-items: center;
+
+      mat-icon {
+        font-size: 12px;
+        width: 12px;
+        height: 12px;
+        color: #16a34a;
+      }
+    }
+
+    .home-badge {
+      display: flex;
+      align-items: center;
+
+      mat-icon {
+        font-size: 12px;
+        width: 12px;
+        height: 12px;
+        color: #d97706;
+      }
+    }
+
+    .persons-badge-inline {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      font-size: 9px;
+      color: #6b7280;
+      font-weight: 500;
 
       mat-icon {
         font-size: 11px;
@@ -212,16 +276,12 @@ import { AppointmentView } from '../../../models/calendar/models.model';
 })
 export class AppointmentBlockComponent {
   appointment = input.required<AppointmentView>();
-  
+
   editAppointment = output<AppointmentView>();
   selectAppointment = output<AppointmentView>();
 
-  // Track hover state for explicit styling
   isHovered = signal(false);
 
-  /**
-   * Calculate left position based on lane index
-   */
   leftPosition = computed(() => {
     const apt = this.appointment();
     const laneWidth = 100 / apt.laneCount;
@@ -229,9 +289,6 @@ export class AppointmentBlockComponent {
     return `calc(${apt.laneIndex * laneWidth}% + ${gapPercent}%)`;
   });
 
-  /**
-   * Calculate width based on lane count
-   */
   blockWidth = computed(() => {
     const apt = this.appointment();
     const laneWidth = 100 / apt.laneCount;
@@ -239,23 +296,14 @@ export class AppointmentBlockComponent {
     return `calc(${laneWidth}% - ${gapPercent}%)`;
   });
 
-  /**
-   * Light version of service color for default background (~15% opacity)
-   */
   serviceColorLight = computed(() => {
     return this.hexToRgba(this.appointment().service.colorHex, 0.12);
   });
 
-  /**
-   * Medium version of service color for hover state (~30% opacity)
-   */
   serviceColorMedium = computed(() => {
     return this.hexToRgba(this.appointment().service.colorHex, 0.25);
   });
 
-  /**
-   * Convert hex color to rgba
-   */
   private hexToRgba(hex: string, alpha: number): string {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
@@ -263,15 +311,13 @@ export class AppointmentBlockComponent {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
-  /**
-   * Determine if block should use compact layout
-   */
   isCompact = computed(() => {
     return this.appointment().height < 55;
   });
 
   /**
-   * Generate tooltip content
+   * Enhanced tooltip with all Stage 5 fields:
+   * payment summary, numberOfPersons, serviceType, voucher
    */
   tooltipContent = computed(() => {
     const apt = this.appointment();
@@ -284,19 +330,73 @@ export class AppointmentBlockComponent {
       priceText = `${apt.service.currency} ${discountedPrice.toFixed(2)} (was ${originalPrice.toFixed(2)}, ${apt.service.discount}% off)`;
     }
 
-    const lines = [
+    const lines: string[] = [
       `👤 ${apt.client.name}${apt.client.isVIP ? ' ⭐ VIP' : ''}`,
       `📞 ${apt.client.phone}`,
-      ``,
-      `💇 ${apt.service.name}`,
-      `👩‍💼 ${apt.staff.name}`,
-      `🕐 ${this.formatTime(apt.startTime)} - ${this.formatTime(apt.endTime)}`,
-      ``,
-      `💰 ${priceText}`
+      ``
     ];
 
+    // Service info
+    lines.push(`💇 ${apt.service.name}`);
+    lines.push(`👩‍💼 ${apt.staff.name}`);
+    lines.push(`🕐 ${this.formatTime(apt.startTime)} - ${this.formatTime(apt.endTime)}`);
+
+    // Service type
+    if (apt.serviceType === 'HOME') {
+      lines.push(`🏠 Home Service`);
+    } else {
+      lines.push(`💈 Salon Service`);
+    }
+
+    // Number of persons
+    if (apt.numberOfPersons > 1) {
+      lines.push(`👥 ${apt.numberOfPersons} persons`);
+    }
+
+    lines.push(``);
+
+    // Pricing
+    lines.push(`💰 Unit: ${priceText}`);
+    if (apt.numberOfPersons > 1) {
+      lines.push(`💰 Total: ${apt.service.currency} ${apt.totalPrice.toFixed(2)} (×${apt.numberOfPersons})`);
+    } else {
+      lines.push(`💰 Total: ${apt.service.currency} ${apt.totalPrice.toFixed(2)}`);
+    }
+
+    // Payment summary
+    lines.push(``);
+    const paymentStatusMap: Record<string, string> = {
+      'NONE': '⬜ Unpaid',
+      'DEPOSIT': '🟡 Deposit Paid',
+      'FULL': '🟢 Fully Paid'
+    };
+    lines.push(paymentStatusMap[apt.paymentStatus] || apt.paymentStatus);
+
+    if (apt.paidAmount > 0) {
+      lines.push(`✅ Paid: ${apt.service.currency} ${apt.paidAmount.toFixed(2)}`);
+    }
+    if (apt.remainingAmount > 0) {
+      lines.push(`⏳ Remaining: ${apt.service.currency} ${apt.remainingAmount.toFixed(2)}`);
+    }
+    if (apt.paymentType) {
+      lines.push(`💳 Method: ${apt.paymentType}`);
+    }
+
+    // Voucher
+    if (apt.voucherCode) {
+      lines.push(`🎟️ Voucher: ${apt.voucherCode}`);
+    }
+
+    // Checkout status
+    if (apt.checkoutStatus === 'checked_out') {
+      lines.push(``);
+      lines.push(`✅ Checked Out`);
+    }
+
+    // Notes
     if (apt.notes) {
-      lines.push(``, `📝 ${apt.notes}`);
+      lines.push(``);
+      lines.push(`📝 ${apt.notes}`);
     }
 
     return lines.join('\n');

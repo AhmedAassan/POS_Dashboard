@@ -1,4 +1,4 @@
-// services/services.service.ts - FULL REPLACEMENT (significant changes)
+// services/services.service.ts
 
 import { Injectable, signal, computed } from '@angular/core';
 import { ServiceItem } from '../../models/calendar/models.model';
@@ -101,16 +101,28 @@ export class ServicesService {
   ];
 
   private servicesSignal = signal<ServiceItem[]>(this.mockServices);
-  
+
   // Selected service IDs for filtering (default: all selected)
   private selectedServiceIdsSignal = signal<Set<string>>(
     new Set(this.mockServices.map(s => s.id))
   );
 
+  // ── Category filter state ──
+  // Initialised with all distinct categories from mock data
+  private selectedCategoryIdsSignal = signal<Set<string>>(
+    new Set(this.mockServices.map(s => s.category))
+  );
+
   readonly services = this.servicesSignal.asReadonly();
   readonly selectedServiceIds = this.selectedServiceIdsSignal.asReadonly();
+  readonly selectedCategoryIds = this.selectedCategoryIdsSignal.asReadonly();
 
-  // Computed: filtered services based on selection
+  /** All distinct category names derived from current service list */
+  readonly categories = computed(() => {
+    return [...new Set(this.services().map(s => s.category))];
+  });
+
+  // Computed: filtered services based on service-level selection
   readonly selectedServices = computed(() => {
     const ids = this.selectedServiceIds();
     return this.services().filter(s => ids.has(s.id));
@@ -124,7 +136,7 @@ export class ServicesService {
     if (!query || query.trim().length === 0) {
       return this.services();
     }
-    
+
     const normalizedQuery = query.toLowerCase().trim();
     return this.services().filter(service =>
       service.name.toLowerCase().includes(normalizedQuery) ||
@@ -137,7 +149,7 @@ export class ServicesService {
   }
 
   getCategories(): string[] {
-    return [...new Set(this.services().map(s => s.category))];
+    return this.categories();
   }
 
   calculateDiscountedPrice(service: ServiceItem): number {
@@ -145,7 +157,8 @@ export class ServicesService {
     return service.price * (1 - service.discount / 100);
   }
 
-  // Service filter methods
+  // ── Service filter methods ──
+
   toggleServiceSelection(serviceId: string): void {
     const current = new Set(this.selectedServiceIds());
     if (current.has(serviceId)) {
@@ -170,6 +183,34 @@ export class ServicesService {
 
   isServiceSelected(serviceId: string): boolean {
     return this.selectedServiceIds().has(serviceId);
+  }
+
+  // ── Category filter methods ──
+
+  isCategorySelected(category: string): boolean {
+    return this.selectedCategoryIds().has(category);
+  }
+
+  toggleCategorySelection(category: string): void {
+    const current = new Set(this.selectedCategoryIds());
+    if (current.has(category)) {
+      current.delete(category);
+    } else {
+      current.add(category);
+    }
+    this.selectedCategoryIdsSignal.set(current);
+  }
+
+  setSelectedCategories(categories: string[]): void {
+    this.selectedCategoryIdsSignal.set(new Set(categories));
+  }
+
+  selectAllCategories(): void {
+    this.selectedCategoryIdsSignal.set(new Set(this.categories()));
+  }
+
+  clearCategorySelection(): void {
+    this.selectedCategoryIdsSignal.set(new Set());
   }
 
   /**
