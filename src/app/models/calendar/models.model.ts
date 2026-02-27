@@ -37,7 +37,7 @@ export type ServiceType = 'SALON' | 'HOME';
 export type PaymentStatus = 'NONE' | 'DEPOSIT' | 'FULL';
 
 /** Payment method used */
-export type PaymentType = 'CASH' | 'LINK' | 'KNET' | 'CARD';
+export type PaymentType = number; // PaymentTypeId from API
 
 /** Checkout workflow status — independent of appointment lifecycle status */
 export type CheckoutStatus = 'open' | 'checked_out';

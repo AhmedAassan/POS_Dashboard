@@ -11,7 +11,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { AppointmentView } from '../../../models/calendar/models.model';
 import { AppointmentsService } from '../../../services/calendar/appointments';
-
+import { PaymentTypesService } from '../../../services/calendar/payment-types';
 @Component({
   selector: 'app-appointment-details-drawer',
   standalone: true,
@@ -174,7 +174,7 @@ import { AppointmentsService } from '../../../services/calendar/appointments';
             @if (appointment().paymentType) {
               <div class="payment-row">
                 <span class="payment-label">Method</span>
-                <span class="payment-value">{{ appointment().paymentType }}</span>
+                <span class="payment-value">{{ paymentTypeLabel() }}</span>
               </div>
             }
           </div>
@@ -736,6 +736,11 @@ import { AppointmentsService } from '../../../services/calendar/appointments';
 export class AppointmentDetailsDrawerComponent {
   private appointmentsService = inject(AppointmentsService);
 
+  private paymentTypesService = inject(PaymentTypesService);
+
+  paymentTypeLabel = computed(() =>
+  this.paymentTypesService.labelById(this.appointment().paymentType)
+  );
   appointment = input.required<AppointmentView>();
 
   close = output<void>();

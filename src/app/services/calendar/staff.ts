@@ -1,54 +1,19 @@
 // services/staff.service.ts
 
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { Staff } from '../../models/calendar/models.model';
+import { LookupsHttpService } from './lookups-http.service';
+import { mapStaffDtoToStaff } from './lookups.api';
 
 @Injectable({
   providedIn: 'root'
 })
 export class StaffService {
-  // Mock staff data
-  private readonly mockStaff: Staff[] = [
-    {
-      id: 'staff-1',
-      name: 'Hala Ahmad',
-      color: '#7C3AED',
-      avatar: 'HA',
-      isActive: true
-    },
-    {
-      id: 'staff-2',
-      name: 'Basma Saleh',
-      color: '#059669',
-      avatar: 'BS',
-      isActive: true
-    },
-    {
-      id: 'staff-3',
-      name: 'Nicole Johnson',
-      color: '#DC2626',
-      avatar: 'NJ',
-      isActive: true
-    },
-    {
-      id: 'staff-4',
-      name: 'Sara Khalid',
-      color: '#2563EB',
-      avatar: 'SK',
-      isActive: true
-    },
-    {
-      id: 'staff-5',
-      name: 'Maya Farah',
-      color: '#D97706',
-      avatar: 'MF',
-      isActive: true
-    }
-  ];
+  private api = inject(LookupsHttpService);
 
   // Signals for reactive state
-  private staffListSignal = signal<Staff[]>(this.mockStaff);
-  private selectedStaffIdsSignal = signal<Set<string>>(new Set(this.mockStaff.map(s => s.id)));
+  private staffListSignal = signal<Staff[]>([]);
+  private selectedStaffIdsSignal = signal<Set<string>>(new Set());
 
   // Public readonly signals
   readonly staffList = this.staffListSignal.asReadonly();
@@ -59,6 +24,27 @@ export class StaffService {
     const selectedIds = this.selectedStaffIds();
     return this.staffList().filter(s => selectedIds.has(s.id));
   });
+
+  constructor() {
+    this.api.getStaff().subscribe({
+      next: (list) => {
+        const staff = (list ?? [])
+          .filter(x => x.Active)
+          .map(mapStaffDtoToStaff);
+
+        this.staffListSignal.set(staff);
+
+        // Default behavior: select all staff (same as your mock version)
+        this.selectedStaffIdsSignal.set(new Set(staff.map(s => s.id)));
+      },
+      error: (err) => {
+        // If API fails, keep empty list (no UI design changes)
+        console.error('Failed to load staff lookups', err);
+        this.staffListSignal.set([]);
+        this.selectedStaffIdsSignal.set(new Set());
+      }
+    });
+  }
 
   getStaffById(id: string): Staff | undefined {
     return this.staffList().find(s => s.id === id);

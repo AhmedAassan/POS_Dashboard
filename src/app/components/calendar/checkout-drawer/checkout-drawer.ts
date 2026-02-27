@@ -14,7 +14,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { AppointmentView, PaymentType } from '../../../models/calendar/models.model';
 import { AppointmentsService } from '../../../services/calendar/appointments';
 import { ServicesService } from '../../../services/calendar/services';
-
+import { PaymentTypesService } from '../../../services/calendar/payment-types';
 /** Internal payment method option for the UI */
 interface PaymentMethodOption {
   type: PaymentType;
@@ -165,7 +165,7 @@ interface PaymentMethodOption {
             <section class="section">
               <h4 class="section-label">PAYMENT METHOD</h4>
               <div class="payment-methods">
-                @for (method of paymentMethods; track method.type) {
+                @for (method of paymentMethods(); track method.type) {
                   <button
                     class="method-card"
                     [class.selected]="selectedPaymentType() === method.type"
@@ -342,7 +342,7 @@ interface PaymentMethodOption {
                 @if (apt().paymentType) {
                   <div class="confirm-detail-row">
                     <mat-icon>credit_card</mat-icon>
-                    <span>{{ apt().paymentType }}</span>
+                    <span>{{ paymentTypeLabel() }}</span>
                   </div>
                 }
               </div>
@@ -1079,6 +1079,10 @@ export class CheckoutDrawerComponent {
   private appointmentsService = inject(AppointmentsService);
   private servicesService = inject(ServicesService);
 
+
+  paymentTypeLabel = computed(() =>
+    this.paymentTypesService.labelById(this.apt().paymentType as any)
+  );
   /** The appointment being checked out — must be a live-refreshable input */
   appointment = input.required<AppointmentView>();
 
@@ -1096,12 +1100,8 @@ export class CheckoutDrawerComponent {
 
   readonly quickPercentages = [25, 50, 75, 100];
 
-  readonly paymentMethods: PaymentMethodOption[] = [
-    { type: 'CASH', label: 'Cash', icon: 'payments' },
-    { type: 'LINK', label: 'Link', icon: 'link' },
-    { type: 'KNET', label: 'K-Net', icon: 'account_balance' },
-    { type: 'CARD', label: 'Card', icon: 'credit_card' }
-  ];
+  private paymentTypesService = inject(PaymentTypesService);
+  readonly paymentMethods = this.paymentTypesService.methods;
 
   readonly steps = [
     { number: 1, label: 'Payment' },
@@ -1201,28 +1201,29 @@ export class CheckoutDrawerComponent {
   });
 
   applyPayment(): void {
-    if (!this.canApplyPayment()) return;
+  if (!this.canApplyPayment()) return;
 
-    const amount = this.payNowAmount();
-    const paymentType = this.selectedPaymentType()!;
-    const remaining = this.liveRemaining();
-    const isFullPayment = amount >= remaining;
+  const amount = this.payNowAmount();
+  const paymentType = this.selectedPaymentType()!;
+  const remaining = this.liveRemaining();
+  const isFullPayment = amount >= remaining;
 
-    this.appointmentsService.applyPayment(this.apt().id, {
-      amount,
-      paymentType,
-      as: isFullPayment ? 'FULL' : 'DEPOSIT',
-      voucherCode: this.voucherApplied() ? this.voucherCode : undefined
-    });
+  this.appointmentsService.applyPayment(this.apt().id, {
+    amount,
+    paymentType,
+    as: isFullPayment ? 'FULL' : 'DEPOSIT',
+    voucherCode: this.voucherApplied() ? this.voucherCode : undefined
+  });
 
-    this.paymentAppliedMessage.set(
-      `${this.apt().service.currency} ${amount.toFixed(2)} payment applied via ${paymentType}`
-    );
+  const label = this.paymentTypesService.labelById(paymentType);
+  this.paymentAppliedMessage.set(
+    `${this.apt().service.currency} ${amount.toFixed(2)} payment applied via ${label}`
+  );
 
-    // Reset pay amount to new remaining (will be 0 if fully paid)
-    const newRemaining = this.liveRemaining();
-    this.payNowAmount.set(newRemaining);
-  }
+  // Reset pay amount to new remaining (will be 0 if fully paid)
+  const newRemaining = this.liveRemaining();
+  this.payNowAmount.set(newRemaining);
+}
 
   applyVoucher(): void {
     if (!this.voucherCode) return;

@@ -1,5 +1,5 @@
 // components/calendar-header/calendar-header.component.ts
-import { Component, inject, output } from '@angular/core';
+import { Component, inject, output, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -18,6 +18,7 @@ import { StaffService } from '../../../services/calendar/staff';
 import { ServicesService } from '../../../services/calendar/services';
 import { AppointmentsService } from '../../../services/calendar/appointments';
 import { Location, CalendarViewMode } from '../../../models/calendar/models.model';
+import { BranchesService } from '../../../services/calendar/branches';
 @Component({
   selector: 'app-calendar-header',
   standalone: true,
@@ -363,19 +364,30 @@ import { Location, CalendarViewMode } from '../../../models/calendar/models.mode
   `]
 })
 export class CalendarHeaderComponent {
+
+  constructor() {
+    effect(() => {
+      const locs = this.branchesService.branches(); // ✅ اقرأ signal
+      if (!locs.length) return;
+
+      const exists = locs.some(l => l.id === this.selectedLocationId);
+      if (!exists) this.selectedLocationId = locs[0].id;
+    });
+  }
   staffService = inject(StaffService);
   servicesService = inject(ServicesService);
   appointmentsService = inject(AppointmentsService);
+
+  branchesService = inject(BranchesService);
+  get locations(): Location[] {
+    return this.branchesService.branches();
+  }
   /** Expose enum to template */
   readonly ViewMode = CalendarViewMode;
   newAppointment = output<void>();
   scrollToNow = output<void>();
-  selectedLocationId = 'loc-1';
-  locations: Location[] = [
-    { id: 'loc-1', name: 'Main Branch - Kuwait City' },
-    { id: 'loc-2', name: 'Salmiya Branch' },
-    { id: 'loc-3', name: 'Hawally Branch' }
-  ];
+  selectedLocationId = '';
+  
   /**
    * Dynamic header label that adapts to the current view mode:
    * - DAY:   "Wed, Jan 15, 2025"

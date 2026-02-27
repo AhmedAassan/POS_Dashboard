@@ -14,7 +14,7 @@ import {
 import { StaffService } from './staff';
 import { ClientsService } from './clients';
 import { ServicesService } from './services';
-
+import { LookupsHttpService } from './lookups-http.service';
 @Injectable({
   providedIn: 'root'
 })
@@ -22,15 +22,36 @@ export class AppointmentsService {
   private staffService = inject(StaffService);
   private clientsService = inject(ClientsService);
   private servicesService = inject(ServicesService);
-
+  private api = inject(LookupsHttpService); 
   // Calendar configuration - easily changeable
-  readonly config: CalendarConfig = {
-    startHour: 6,         // 6:00 AM
-    endHour: 22,          // 10:00 PM
-    slotDuration: 15,     // 15-minute slots for finer granularity
-    pixelsPerMinute: 1.5  // Height calculation: 1.5px per minute
-  };
 
+  private configSignal = signal<CalendarConfig>({
+    startHour: 6,
+    endHour: 22,
+    slotDuration: 15,
+    pixelsPerMinute: 1.5
+  });
+
+  readonly config = this.configSignal.asReadonly(); 
+
+  constructor() {
+    // ✅ new: load settings from API
+    this.api.getAppointmentSettings().subscribe({
+      next: (settings) => {
+        if (settings) {
+          this.configSignal.update(c => ({
+            ...c,
+            startHour: settings.StartHour,
+            endHour: settings.EndHour
+          }));
+        }
+      },
+      error: (err) => {
+        console.error('Failed to load appointment settings', err);
+        // يبقى على القيم الافتراضية
+      }
+    });
+  }
   // Mock appointments data — includes all Stage 1 fields
   private readonly mockAppointments: Appointment[] = [
     {
@@ -82,7 +103,7 @@ export class AppointmentsService {
       numberOfPersons: 2,
       serviceType: 'HOME',
       paymentStatus: 'DEPOSIT',
-      paymentType: 'KNET',
+      paymentType: 2,
       depositAmount: 10,
       paidAmount: 10
     },
@@ -117,7 +138,7 @@ export class AppointmentsService {
       numberOfPersons: 1,
       serviceType: 'SALON',
       paymentStatus: 'FULL',
-      paymentType: 'CARD',
+      paymentType: 7,
       depositAmount: 0,
       paidAmount: 28
     },
@@ -154,9 +175,9 @@ export class AppointmentsService {
   generateTimeOptions(): TimeOption[] {
     const options: TimeOption[] = [];
 
-    for (let hour = this.config.startHour; hour <= this.config.endHour; hour++) {
-      for (let minute = 0; minute < 60; minute += this.config.slotDuration) {
-        if (hour === this.config.endHour && minute > 0) break;
+    for (let hour = this.config().startHour; hour <= this.config().endHour; hour++) {
+      for (let minute = 0; minute < 60; minute += this.config().slotDuration) {
+        if (hour === this.config().endHour && minute > 0) break;
 
         const value = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
         const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
@@ -504,8 +525,8 @@ export class AppointmentsService {
 
   calculateTopPosition(startTime: string): number {
     const [hours, minutes] = startTime.split(':').map(Number);
-    const minutesFromDayStart = (hours - this.config.startHour) * 60 + minutes;
-    return minutesFromDayStart * this.config.pixelsPerMinute;
+    const minutesFromDayStart = (hours - this.config().startHour) * 60 + minutes;
+    return minutesFromDayStart * this.config().pixelsPerMinute;
   }
 
   calculateHeight(startTime: string, endTime: string): number {
@@ -516,14 +537,14 @@ export class AppointmentsService {
     const endTotalMinutes = endHours * 60 + endMinutes;
     const duration = endTotalMinutes - startTotalMinutes;
 
-    return Math.max(duration * this.config.pixelsPerMinute, 30);
+    return Math.max(duration * this.config().pixelsPerMinute, 30);
   }
 
   generateTimeSlots(): { time: string; label: string; isHour: boolean }[] {
     const slots: { time: string; label: string; isHour: boolean }[] = [];
 
-    for (let hour = this.config.startHour; hour < this.config.endHour; hour++) {
-      for (let minute = 0; minute < 60; minute += this.config.slotDuration) {
+    for (let hour = this.config().startHour; hour < this.config().endHour; hour++) {
+      for (let minute = 0; minute < 60; minute += this.config().slotDuration) {
         const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
         const isHour = minute === 0;
 
@@ -539,12 +560,12 @@ export class AppointmentsService {
   }
 
   getGridHeight(): number {
-    const totalMinutes = (this.config.endHour - this.config.startHour) * 60;
-    return totalMinutes * this.config.pixelsPerMinute;
+    const totalMinutes = (this.config().endHour - this.config().startHour) * 60;
+    return totalMinutes * this.config().pixelsPerMinute;
   }
 
   getSlotHeight(): number {
-    return this.config.slotDuration * this.config.pixelsPerMinute;
+    return this.config().slotDuration * this.config().pixelsPerMinute;
   }
 
   // ── Conflict detection ──
@@ -589,7 +610,7 @@ export class AppointmentsService {
 
   snapToIncrement(time: string): string {
     const [hours, minutes] = time.split(':').map(Number);
-    const snappedMinutes = Math.round(minutes / this.config.slotDuration) * this.config.slotDuration;
+    const snappedMinutes = Math.round(minutes / this.config().slotDuration) * this.config().slotDuration;
     const adjustedHours = hours + Math.floor(snappedMinutes / 60);
     const finalMinutes = snappedMinutes % 60;
     return `${adjustedHours.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;

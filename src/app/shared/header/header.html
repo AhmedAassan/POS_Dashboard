@@ -74,9 +74,7 @@
         }
         <div class="user-details">
           <span class="user-name">{{ userName() }}</span>
-          @if (user()?.email) {
-            <span class="user-email">{{ user()!.email }}</span>
-          }
+          <span class="user-email">{{ user()?.username }}</span>
         </div>
       </div>
 
