@@ -15,6 +15,7 @@ import { StaffService } from './staff';
 import { ClientsService } from './clients';
 import { ServicesService } from './services';
 import { LookupsHttpService } from './lookups-http.service';
+import { AppointmentCategoriesService } from './appointment-categories.service';
 @Injectable({
   providedIn: 'root'
 })
@@ -23,6 +24,7 @@ export class AppointmentsService {
   private clientsService = inject(ClientsService);
   private servicesService = inject(ServicesService);
   private api = inject(LookupsHttpService); 
+  private categoriesService = inject(AppointmentCategoriesService);
   // Calendar configuration - easily changeable
 
   private configSignal = signal<CalendarConfig>({
@@ -299,26 +301,29 @@ export class AppointmentsService {
    * Angular will still track reactivity when called inside a computed context.
    */
   appointmentsForDate(date: Date): AppointmentView[] {
-    const appointments = this.appointments();
-    const selectedStaffIds = this.staffService.selectedStaffIds();
-    const selectedServiceIds = this.servicesService.selectedServiceIds();
-    const selectedCategoryIds = this.servicesService.selectedCategoryIds();
+  const appointments = this.appointments();
+  const selectedStaffIds = this.staffService.selectedStaffIds();
+  const selectedServiceIds = this.servicesService.selectedServiceIds();
+  const selectedCategoryIds = this.categoriesService.selectedCategoryIds();
 
-    const dateAppointments = appointments.filter(apt => {
-      if (!this.isSameDay(apt.date, date)) return false;
-      if (apt.status === 'cancelled') return false;
-      if (!selectedStaffIds.has(apt.staffId)) return false;
-      if (!selectedServiceIds.has(apt.serviceId)) return false;
+  const dateAppointments = appointments.filter(apt => {
+    if (!this.isSameDay(apt.date, date)) return false;
+    if (apt.status === 'cancelled') return false;
+    if (!selectedStaffIds.has(apt.staffId)) return false;
+    if (!selectedServiceIds.has(apt.serviceId)) return false;
 
-      const service = this.servicesService.getServiceById(apt.serviceId);
-      if (!service || !selectedCategoryIds.has(service.category)) return false;
+    // Category filter by AppointmentCategoryId
+    const service = this.servicesService.getServiceById(apt.serviceId);
+    if (!service) return false;
 
-      return true;
-    });
+    if (!selectedCategoryIds.has(service.appointmentCategoryId)) return false;
 
-    const enrichedAppointments = dateAppointments.map(apt => this.enrichAppointment(apt));
-    return this.calculateLanes(enrichedAppointments);
-  }
+    return true;
+  });
+
+  const enrichedAppointments = dateAppointments.map(apt => this.enrichAppointment(apt));
+  return this.calculateLanes(enrichedAppointments);
+}
 
   readonly appointmentsForSelectedDate = computed(() => {
     return this.appointmentsForDate(this.selectedDate());

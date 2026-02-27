@@ -8,7 +8,8 @@ import {
   CustomerDto,
   PaymentTypeDto,
   ServiceDto,
-  StaffDto
+  StaffDto,
+  AppointmentCategoryDto
 } from './lookups.api';
 
 interface ApiResponse<T> {
@@ -61,5 +62,11 @@ export class LookupsHttpService {
   return this.http
     .get<ApiResponse<AppointmentSettingsDto>>(`${this.baseUrl}/appointment-settings`)
     .pipe(map(r => r.Data));
-}
+  }
+
+  getAppointmentCategories() {
+    return this.http
+      .get<ApiResponse<AppointmentCategoryDto[]>>(`${this.baseUrl}/appointment-categories`)
+      .pipe(map(r => r.Data ?? []));
+  }
 }

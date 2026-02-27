@@ -19,6 +19,7 @@ import { ServicesService } from '../../../services/calendar/services';
 import { AppointmentsService } from '../../../services/calendar/appointments';
 import { Location, CalendarViewMode } from '../../../models/calendar/models.model';
 import { BranchesService } from '../../../services/calendar/branches';
+import { AppointmentCategoriesService } from '../../../services/calendar/appointment-categories.service';
 @Component({
   selector: 'app-calendar-header',
   standalone: true,
@@ -120,26 +121,26 @@ import { BranchesService } from '../../../services/calendar/branches';
         <div class="filter-dropdown">
           <button mat-stroked-button [matMenuTriggerFor]="categoryMenu" class="filter-btn">
             <mat-icon>category</mat-icon>
-            <span>Categories ({{ servicesService.selectedCategoryIds().size }}/{{ servicesService.categories().length }})</span>
+            <span>Categories ({{ categoriesService.selectedCategoryIds().size }}/{{ categoriesService.categories().length }})</span>
             <mat-icon>arrow_drop_down</mat-icon>
           </button>
           <mat-menu #categoryMenu="matMenu" class="filter-menu">
             <div class="menu-header" (click)="$event.stopPropagation()">
-              <button mat-button color="primary" (click)="servicesService.selectAllCategories()">
+              <button mat-button color="primary" (click)="categoriesService.selectAllCategories()">
                 All
               </button>
-              <button mat-button (click)="servicesService.clearCategorySelection()">
+              <button mat-button (click)="categoriesService.clearCategorySelection()">
                 None
               </button>
             </div>
             <mat-divider></mat-divider>
-            @for (cat of servicesService.categories(); track cat) {
+            @for (cat of categoriesService.categories(); track cat.id) {
               <div class="filter-menu-item" (click)="$event.stopPropagation()">
                 <mat-checkbox
-                  [checked]="servicesService.isCategorySelected(cat)"
-                  (change)="servicesService.toggleCategorySelection(cat)">
+                  [checked]="categoriesService.isCategorySelected(cat.id)"
+                  (change)="categoriesService.toggleCategorySelection(cat.id)">
                   <div class="category-option">
-                    <span>{{ cat }}</span>
+                    <span>{{ cat.name }}</span>
                   </div>
                 </mat-checkbox>
               </div>
@@ -377,7 +378,7 @@ export class CalendarHeaderComponent {
   staffService = inject(StaffService);
   servicesService = inject(ServicesService);
   appointmentsService = inject(AppointmentsService);
-
+  categoriesService = inject(AppointmentCategoriesService);
   branchesService = inject(BranchesService);
   get locations(): Location[] {
     return this.branchesService.branches();

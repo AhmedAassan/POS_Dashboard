@@ -3,6 +3,7 @@
 export interface Staff {
   id: string;
   name: string;
+  nameAr: string;
   color: string;
   avatar?: string;
   isActive: boolean;
@@ -22,7 +23,10 @@ export interface Client {
 export interface ServiceItem {
   id: string;
   name: string;
+  nameAr: string;
   category: string;
+  categoryAr: string;
+  appointmentCategoryId: number;
   duration: number; // in minutes
   price: number;
   discount: number; // percentage (0-100)
@@ -102,6 +106,7 @@ export interface AppointmentView extends Appointment {
 export interface Location {
   id: string;
   name: string;
+  nameAr: string;
   address?: string;
 }
 

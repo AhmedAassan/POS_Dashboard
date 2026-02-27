@@ -6,6 +6,7 @@ import { PaymentType } from '../../models/calendar/models.model';
 export interface PaymentMethodOption {
   type: PaymentType;  // number id
   label: string;      // Name1
+  labelAr: string;
   icon: string;       // material icon name
 }
 
@@ -22,6 +23,7 @@ export class PaymentTypesService {
         const methods = (list ?? []).map(x => ({
           type: x.Id,
           label: x.Name1,
+          labelAr: x.Name2 || x.Name1,    // ✅ new
           icon: iconForPaymentName(x.Name1)
         }));
 
@@ -34,10 +36,15 @@ export class PaymentTypesService {
     });
   }
 
-  /** helper: get label by id for displaying in details/confirm */
   labelById(id: number | undefined): string {
     if (!id) return '';
     return this.methodsSignal().find(m => m.type === id)?.label ?? `#${id}`;
+  }
+
+  // ✅ new
+  labelArById(id: number | undefined): string {
+    if (!id) return '';
+    return this.methodsSignal().find(m => m.type === id)?.labelAr ?? `#${id}`;
   }
 }
 

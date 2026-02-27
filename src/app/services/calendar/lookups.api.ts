@@ -5,6 +5,7 @@ import { Client, Location, ServiceItem, Staff } from '../../models/calendar/mode
 export interface BranchDto {
   BranchId: number;
   BranchName1: string;
+  BranchName2: string;
   BranchAddress?: string;
   ColorCode?: string; // "bae8e8"
   EnglishCurrencyName?: string; // "KWD"
@@ -18,20 +19,50 @@ export interface StaffDto {
   BranchId: number;
 }
 
+export interface AppointmentCategoryDto {
+  Id: number;
+  ArabicName: string;
+  EnglishName: string;
+  Deleted: boolean;
+  IsMakeup: boolean;
+  IsPackage: boolean;
+  Deposit: number;
+}
+export interface AppointmentCategory {
+  id: number;
+  name: string;
+  nameAr: string;
+  isMakeup: boolean;
+  isPackage: boolean;
+  deposit: number;
+}
+
 export interface ServiceDto {
   ItemId: number;
-  ItemEnName: string;          // ✅ renamed from ItemName1
-  ItemArName: string;          // ✅ new
+  ItemEnName: string;
+  ItemArName: string;
   ItemIsActive: number;
-  CategoryNameEn?: string;     // ✅ renamed from CategoryName1
-  CategoryNameAr?: string;     // ✅ new
+  AppointmentCategoryId: number;           // ✅ this is the key
   AppointmentCategoryNameEn?: string;
-  AppointmentCategoryNameAr?: string;  // ✅ new
+  AppointmentCategoryNameAr?: string;
+  CategoryId?: number;                     // ignored
+  CategoryNameEn?: string;                 // ignored
+  CategoryNameAr?: string;                 // ignored
   ItemUnitPrice: number;
   ItemUnitDuration: number;
   EnglishCurrencyName?: string;
-  UnitEnName?: string;         // ✅ new
-  UnitArName?: string;         // ✅ new
+  UnitEnName?: string;
+  UnitArName?: string;
+  ItemDocumentName?: string;
+  MinimumPrice?: number;
+  UnitId?: number;
+  UnitActive?: boolean;
+  BranchId?: number;
+  BranchName1?: string;
+  BranchName2?: string;
+  BranchPhone?: string;
+  ArabicCurrencyName?: string;
+  RoundOfDigits?: number;
 }
 
 export interface CustomerDto {
@@ -82,6 +113,7 @@ export function mapBranchToLocation(b: BranchDto): Location {
   return {
     id: `loc-${b.BranchId}`,
     name: b.BranchName1,
+    nameAr: b.BranchName2 || b.BranchName1,     // ✅ new
     address: b.BranchAddress
   };
 }
@@ -90,24 +122,28 @@ export function mapStaffDtoToStaff(s: StaffDto): Staff {
   return {
     id: `staff-${s.Id}`,
     name: (s.EnglishName || s.ArabicName || '').trim(),
-    color: colorFromId(s.Id), // “random” but stable
+    nameAr: (s.ArabicName || s.EnglishName || '').trim(),   // ✅ new
+    color: colorFromId(s.Id),
     avatar: initialsFromName((s.EnglishName || s.ArabicName || '').trim()),
     isActive: !!s.Active
   };
 }
 
 export function mapServiceDtoToServiceItem(x: ServiceDto): ServiceItem {
-  const category =
-    (x.CategoryNameEn || '').trim() ||          // ✅ changed
-    (x.AppointmentCategoryNameEn || '').trim() ||
-    'Service';
+  const category = (x.AppointmentCategoryNameEn || '').trim() || 'Service';
+  const categoryAr = (x.AppointmentCategoryNameAr || category).trim();
 
-  const duration = x.ItemUnitDuration && x.ItemUnitDuration > 0 ? Math.round(x.ItemUnitDuration) : 30;
+  const duration = x.ItemUnitDuration && x.ItemUnitDuration > 0
+    ? Math.round(x.ItemUnitDuration)
+    : 30;
 
   return {
     id: `service-${x.ItemId}`,
-    name: (x.ItemEnName || '').trim(),           // ✅ changed
+    name: (x.ItemEnName || '').trim(),
+    nameAr: (x.ItemArName || x.ItemEnName || '').trim(),
     category,
+    categoryAr,
+    appointmentCategoryId: x.AppointmentCategoryId,    // ✅ new
     duration,
     price: Number(x.ItemUnitPrice ?? 0),
     discount: 0,
@@ -126,6 +162,16 @@ export function mapCustomerDtoToClient(c: CustomerDto, currency = 'KWD'): Client
     totalBookings: 0,      // not provided
     unpaidAmount: 0,       // not provided
     currency
+  };
+}
+export function mapAppointmentCategoryDto(dto: AppointmentCategoryDto): AppointmentCategory {
+  return {
+    id: dto.Id,
+    name: (dto.EnglishName || '').trim(),
+    nameAr: (dto.ArabicName || dto.EnglishName || '').trim(),
+    isMakeup: dto.IsMakeup,
+    isPackage: dto.IsPackage,
+    deposit: dto.Deposit
   };
 }
 
