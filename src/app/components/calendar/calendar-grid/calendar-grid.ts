@@ -113,6 +113,7 @@ import { AppointmentView } from '../../../models/calendar/models.model';
                       [appointment]="apt"
                       (editAppointment)="onEditAppointment($event)"
                       (selectAppointment)="onSelectAppointment($event)"
+                      (viewInvoice)="onViewInvoice($event)"
                     />
                   }
                 </div>
@@ -424,6 +425,7 @@ export class CalendarGridComponent implements AfterViewInit, OnDestroy {
   // Output events
   editAppointment = output<AppointmentView>();
   selectAppointment = output<AppointmentView>();
+  viewInvoice = output<AppointmentView>();
 
   // ── Column configuration (single source of truth) ──
   readonly columnMinWidth = 180;
@@ -586,5 +588,8 @@ export class CalendarGridComponent implements AfterViewInit, OnDestroy {
 
   onSelectAppointment(apt: AppointmentView): void {
     this.selectAppointment.emit(apt);
+  }
+  onViewInvoice(apt: AppointmentView): void {
+    this.viewInvoice.emit(apt);
   }
 }

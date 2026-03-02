@@ -13,7 +13,9 @@
         @case (ViewMode.DAY) {
           <app-calendar-grid
             (selectAppointment)="openDrawerForDetails($event)"
-            (editAppointment)="openDrawerForEdit($event)" />
+            (editAppointment)="openDrawerForEdit($event)"
+            (viewInvoice)="onViewInvoice($event)"
+             />
         }
 
         @case (ViewMode.WEEK) {

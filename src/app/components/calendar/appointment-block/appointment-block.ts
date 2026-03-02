@@ -86,6 +86,16 @@ import { AppointmentView } from '../../../models/calendar/models.model';
           </div>
         }
       </div>
+
+      <!-- ✅ Invoice button: OUTSIDE block-content, shows on hover for checked-out -->
+      @if (appointment().checkoutStatus === 'checked_out' && isHovered()) {
+        <button
+          class="invoice-float-btn"
+          (click)="onViewInvoice($event)"
+          matTooltip="View Invoice">
+          <mat-icon>receipt_long</mat-icon>
+        </button>
+      }
     </div>
   `,
   styles: [`
@@ -109,6 +119,7 @@ import { AppointmentView } from '../../../models/calendar/models.model';
 
       &:hover,
       &.is-hovered {
+        overflow: visible;
         background-color: var(--service-color-medium);
         border-color: var(--service-color);
         box-shadow:
@@ -120,6 +131,11 @@ import { AppointmentView } from '../../../models/calendar/models.model';
 
       &.is-checked-out {
         opacity: 0.75;
+
+        &:hover,
+        &.is-hovered {
+          opacity: 1;           
+        }
       }
     }
 
@@ -272,6 +288,41 @@ import { AppointmentView } from '../../../models/calendar/models.model';
         height: 11px;
       }
     }
+    .invoice-float-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: none;
+      background: white;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      z-index: 5;
+      transition: all 0.15s ease;
+
+      mat-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+        color: #6366f1;
+      }
+
+      &:hover {
+        background: #6366f1;
+        transform: scale(1.1);
+        box-shadow: 0 3px 10px rgba(99, 102, 241, 0.4);
+
+        mat-icon {
+          color: white;
+        }
+      }
+    }
   `]
 })
 export class AppointmentBlockComponent {
@@ -279,6 +330,7 @@ export class AppointmentBlockComponent {
 
   editAppointment = output<AppointmentView>();
   selectAppointment = output<AppointmentView>();
+  viewInvoice = output<AppointmentView>();
 
   isHovered = signal(false);
 
@@ -407,5 +459,9 @@ export class AppointmentBlockComponent {
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
     return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  }
+  onViewInvoice(event: Event): void {
+    event.stopPropagation();
+    this.viewInvoice.emit(this.appointment());
   }
 }

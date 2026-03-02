@@ -227,4 +227,48 @@ export class SchedulerBooking {
       panelClass: type === 'warn' ? 'snack-warn' : 'snack-success'
     });
   }
+
+  onViewInvoice(apt: AppointmentView): void {
+    const rawApt = this.appointmentsService.getAppointmentById(apt.id);
+    if (!rawApt) return;
+
+    const service = this.servicesService.getServiceById(rawApt.serviceId);
+    if (!service) return;
+
+    const discountedPrice = this.servicesService.calculateDiscountedPrice(service);
+    const total = discountedPrice * rawApt.numberOfPersons;
+    const remaining = Math.max(0, total - rawApt.paidAmount);
+
+    const enrichedApt: AppointmentView = {
+      ...apt,
+      ...rawApt,
+      totalPrice: total,
+      remainingAmount: remaining,
+      discountedPrice
+    };
+
+    const invoiceNumber = `INV-${apt.id.replace('apt-', '').toUpperCase()}`;
+
+    const dialogData: InvoiceDialogData = {
+      appointment: enrichedApt,
+      invoiceNumber,
+      invoiceDate: rawApt.date,
+      total,
+      paid: rawApt.paidAmount,
+      remaining,
+      currency: service.currency,
+      paymentType: rawApt.paymentType,
+      paymentStatus: rawApt.paymentStatus,
+      locationName: 'Main Branch — Kuwait City'
+    };
+
+    this.dialog.open(InvoiceDialogComponent, {
+      data: dialogData,
+      width: '900px',
+      maxWidth: '95vw',
+      maxHeight: '92vh',
+      panelClass: 'invoice-dialog-panel',
+      autoFocus: false
+    });
+  }
 }
