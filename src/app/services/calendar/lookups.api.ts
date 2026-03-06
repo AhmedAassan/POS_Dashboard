@@ -7,8 +7,8 @@ export interface BranchDto {
   BranchName1: string;
   BranchName2: string;
   BranchAddress?: string;
-  ColorCode?: string; // "bae8e8"
-  EnglishCurrencyName?: string; // "KWD"
+  ColorCode?: string;
+  EnglishCurrencyName?: string;
 }
 
 export interface StaffDto {
@@ -42,12 +42,12 @@ export interface ServiceDto {
   ItemEnName: string;
   ItemArName: string;
   ItemIsActive: number;
-  AppointmentCategoryId: number;           // ✅ this is the key
+  AppointmentCategoryId: number;
   AppointmentCategoryNameEn?: string;
   AppointmentCategoryNameAr?: string;
-  CategoryId?: number;                     // ignored
-  CategoryNameEn?: string;                 // ignored
-  CategoryNameAr?: string;                 // ignored
+  CategoryId?: number;
+  CategoryNameEn?: string;
+  CategoryNameAr?: string;
   ItemUnitPrice: number;
   ItemUnitDuration: number;
   EnglishCurrencyName?: string;
@@ -69,23 +69,44 @@ export interface CustomerDto {
   CustomerId: number;
   CustomerName: string;
   CustomerPhone1: string;
+  CustomerPhone2?: string;
   CustomerNote?: string;
   CustomerIsBlock?: number;
+  CustomerBlockReason?: string;
 }
 
 export interface PaymentTypeDto {
   Id: number;
-  Name1: string; // "Cash", "K-Net", ...
+  Name1: string;
   Name2: string;
 }
 
-/** ===== Color helpers =====
- * You asked “random colors”.
- * If we make them truly random on every fetch, colors will change on refresh and feel “buggy”.
- * So this gives a random-looking BUT STABLE color per id (no UI flicker).
- */
+// ✅ NEW: Create Customer
+export interface CreateCustomerApiRequest {
+  CustomerName: string;
+  CustomerPhone1: string;
+  CustomerPhone2?: string;
+  BirthDate?: string;
+  CustomerIsBlock?: number;
+  CustomerBlockReason?: string;
+  BranchId: number;
+}
+
+export interface CreateCustomerApiResponse {
+  CustomerId: number;
+  CustomerName: string;
+  CustomerPhone1: string;
+  CustomerPhone2?: string;
+  BirthDate?: string;
+  CustomerIsBlock?: number;
+  CustomerBlockReason?: string;
+  CustomerCreatedDate: string;
+  BranchId: number;
+  CustomerRefGuide: string;
+}
+
+/** ===== Color helpers ===== */
 export function colorFromId(id: number): string {
-  // simple deterministic hash -> hue
   const hue = (id * 137) % 360;
   return hslToHex(hue, 70, 45);
 }
@@ -100,7 +121,6 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
 }
 
-/** Backend branch ColorCode might come without '#'. */
 export function normalizeHex(hex?: string): string | undefined {
   if (!hex) return undefined;
   const cleaned = hex.replace('#', '').trim();
@@ -108,12 +128,12 @@ export function normalizeHex(hex?: string): string | undefined {
   return undefined;
 }
 
-/** ===== Mappers: DTO -> your existing UI models ===== */
+/** ===== Mappers ===== */
 export function mapBranchToLocation(b: BranchDto): Location {
   return {
     id: `loc-${b.BranchId}`,
     name: b.BranchName1,
-    nameAr: b.BranchName2 || b.BranchName1,     // ✅ new
+    nameAr: b.BranchName2 || b.BranchName1,
     address: b.BranchAddress
   };
 }
@@ -122,7 +142,7 @@ export function mapStaffDtoToStaff(s: StaffDto): Staff {
   return {
     id: `staff-${s.Id}`,
     name: (s.EnglishName || s.ArabicName || '').trim(),
-    nameAr: (s.ArabicName || s.EnglishName || '').trim(),   // ✅ new
+    nameAr: (s.ArabicName || s.EnglishName || '').trim(),
     color: colorFromId(s.Id),
     avatar: initialsFromName((s.EnglishName || s.ArabicName || '').trim()),
     isActive: !!s.Active
@@ -143,12 +163,13 @@ export function mapServiceDtoToServiceItem(x: ServiceDto): ServiceItem {
     nameAr: (x.ItemArName || x.ItemEnName || '').trim(),
     category,
     categoryAr,
-    appointmentCategoryId: x.AppointmentCategoryId,    // ✅ new
+    appointmentCategoryId: x.AppointmentCategoryId,
     duration,
     price: Number(x.ItemUnitPrice ?? 0),
     discount: 0,
     colorHex: colorFromId(x.ItemId),
-    currency: x.EnglishCurrencyName || 'KWD'
+    currency: x.EnglishCurrencyName || 'KWD',
+    unitId: x.UnitId || 0
   };
 }
 
@@ -157,13 +178,18 @@ export function mapCustomerDtoToClient(c: CustomerDto, currency = 'KWD'): Client
     id: `client-${c.CustomerId}`,
     name: (c.CustomerName || '').trim(),
     phone: c.CustomerPhone1,
-    email: undefined,      // not provided
-    isVIP: false,          // not provided
-    totalBookings: 0,      // not provided
-    unpaidAmount: 0,       // not provided
+    phone2: c.CustomerPhone2 || undefined,
+    email: undefined,
+    isVIP: false,
+    isNewCustomer: false,
+    hasAlert: (c.CustomerIsBlock ?? 0) === 1,        // ✅ NEW
+    alertNote: c.CustomerBlockReason || undefined,    // ✅ NEW
+    totalBookings: 0,
+    unpaidAmount: 0,
     currency
   };
 }
+
 export function mapAppointmentCategoryDto(dto: AppointmentCategoryDto): AppointmentCategory {
   return {
     id: dto.Id,

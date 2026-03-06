@@ -17,6 +17,8 @@ import { InvoiceDialogComponent, InvoiceDialogData } from '../../components/cale
 import { AppointmentView, CalendarViewMode } from '../../models/calendar/models.model';
 import { AppointmentsService } from '../../services/calendar/appointments';
 import { ServicesService } from '../../services/calendar/services';
+import { AppointmentsHttpService } from '../../services/calendar/appointments-http.service';
+import { Subscription } from 'rxjs';
 
 /** Which content the right sidenav is showing */
 type DrawerMode = 'details' | 'create' | 'edit' | 'checkout';
@@ -45,6 +47,82 @@ export class SchedulerBooking {
   private servicesService = inject(ServicesService);
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
+  private appointmentsApi = inject(AppointmentsHttpService);
+  private checkoutSub?: Subscription;
+  private _pendingCheckoutApt: AppointmentView | null = null;
+
+  private handleCheckoutResult(
+    appointmentId: string,
+    invoice: {
+      invoiceNumber: string;
+      invoiceId: number;
+      totalAmount: number;
+      paidAmount: number;
+      remainingAmount: number;
+      currency: string;
+      paymentTypeId?: number;
+      paymentStatus: string;
+    }
+  ): void {
+    this.showNotification('Sale confirmed — appointment checked out');
+
+    // Get fresh appointment data
+    const rawApt = this.appointmentsService.getAppointmentById(appointmentId);
+    if (!rawApt) return;
+
+    const service = this.servicesService.getServiceById(rawApt.serviceId);
+    if (!service) return;
+
+    const discountedPrice = this.servicesService.calculateDiscountedPrice(service);
+    const total = discountedPrice * rawApt.numberOfPersons;
+    const remaining = Math.max(0, total - rawApt.paidAmount);
+
+    // Use the pending details apt or find from current appointments
+    const detailsApt = this._pendingCheckoutApt
+      ?? this.appointmentsService.appointmentsForSelectedDate()
+          .find(a => a.id === appointmentId);
+
+    this._pendingCheckoutApt = null;
+
+    if (!detailsApt) return;
+
+    const enrichedApt: AppointmentView = {
+      ...detailsApt,
+      ...rawApt,
+      totalPrice: total,
+      remainingAmount: remaining,
+      discountedPrice
+    };
+
+    // ✅ Use REAL invoice data from the API — no more fake numbers
+    const dialogData: InvoiceDialogData = {
+      appointment: enrichedApt,
+      invoiceNumber: invoice.invoiceNumber,        // ✅ real
+      invoiceDate: new Date(),
+      total: invoice.totalAmount,                  // ✅ real
+      paid: invoice.paidAmount,                    // ✅ real
+      remaining: invoice.remainingAmount,           // ✅ real
+      currency: invoice.currency,                   // ✅ real
+      paymentType: invoice.paymentTypeId,           // ✅ real
+      paymentStatus: invoice.paymentStatus,         // ✅ real
+      locationName: 'Main Branch — Kuwait City'
+    };
+
+    this.dialog.open(InvoiceDialogComponent, {
+      data: dialogData,
+      width: '900px',
+      maxWidth: '95vw',
+      maxHeight: '92vh',
+      panelClass: 'invoice-dialog-panel',
+      autoFocus: false
+    });
+  }
+  constructor() {
+    // Subscribe to real checkout results from the API
+    this.checkoutSub = this.appointmentsService.checkoutResult$.subscribe(result => {
+      this.handleCheckoutResult(result.appointmentId, result);
+    });
+  }
 
   @ViewChild(CalendarGridComponent) calendarGrid!: CalendarGridComponent;
 
@@ -124,63 +202,18 @@ export class SchedulerBooking {
   /**
    * Checkout confirmed → close drawer, then open invoice dialog.
    */
-  onCheckoutConfirmed(appointmentId: string): void {
-    // Resolve the freshest appointment data before closing the drawer
-    const rawApt = this.appointmentsService.getAppointmentById(appointmentId);
+   onCheckoutConfirmed(appointmentId: string): void {
+    // The drawer already called checkoutAppointment().
+    // The actual dialog opening happens in handleCheckoutResult()
+    // when the API responds via checkoutResult$.
+
+    // For now, just close the drawer and show a notification
     const detailsApt = this.selectedAppointmentForDetails();
-
-    // Close drawer first
     this.closeDrawer();
-    this.showNotification('Sale confirmed — appointment checked out');
+    this.showNotification('Processing checkout...');
 
-    // Build the enriched view for the dialog
-    if (!rawApt) return;
-
-    const service = this.servicesService.getServiceById(rawApt.serviceId);
-    if (!service) return;
-
-    const discountedPrice = this.servicesService.calculateDiscountedPrice(service);
-    const total = discountedPrice * rawApt.numberOfPersons;
-    const remaining = Math.max(0, total - rawApt.paidAmount);
-
-    // Merge with the last known AppointmentView for client/staff/service refs
-    const enrichedApt: AppointmentView = detailsApt
-      ? {
-          ...detailsApt,
-          ...rawApt,
-          totalPrice: total,
-          remainingAmount: remaining,
-          discountedPrice
-        }
-      : this.appointmentsService.appointmentsForSelectedDate()
-          .find(a => a.id === appointmentId) ?? detailsApt!;
-
-    if (!enrichedApt) return;
-
-    // Generate invoice number
-    const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
-
-    const dialogData: InvoiceDialogData = {
-      appointment: enrichedApt,
-      invoiceNumber,
-      invoiceDate: new Date(),
-      total,
-      paid: rawApt.paidAmount,
-      remaining,
-      currency: service.currency,
-      paymentType: rawApt.paymentType,
-      paymentStatus: rawApt.paymentStatus,
-      locationName: 'Main Branch — Kuwait City'
-    };
-
-    this.dialog.open(InvoiceDialogComponent, {
-      data: dialogData,
-      width: '900px',
-      maxWidth: '95vw',
-      maxHeight: '92vh',
-      panelClass: 'invoice-dialog-panel',
-      autoFocus: false
-    });
+    // Store the details apt temporarily for use in handleCheckoutResult
+    this._pendingCheckoutApt = detailsApt;
   }
 
   closeDrawer(): void {
@@ -229,46 +262,55 @@ export class SchedulerBooking {
   }
 
   onViewInvoice(apt: AppointmentView): void {
-    const rawApt = this.appointmentsService.getAppointmentById(apt.id);
-    if (!rawApt) return;
+    const backendId = parseInt(apt.id.replace('apt-', ''), 10);
 
-    const service = this.servicesService.getServiceById(rawApt.serviceId);
-    if (!service) return;
+    // Fetch real invoice from backend
+    this.appointmentsApi.getInvoice(backendId).subscribe({
+      next: (invoice) => {
+        const rawApt = this.appointmentsService.getAppointmentById(apt.id);
+        if (!rawApt) return;
 
-    const discountedPrice = this.servicesService.calculateDiscountedPrice(service);
-    const total = discountedPrice * rawApt.numberOfPersons;
-    const remaining = Math.max(0, total - rawApt.paidAmount);
+        const service = this.servicesService.getServiceById(rawApt.serviceId);
+        if (!service) return;
 
-    const enrichedApt: AppointmentView = {
-      ...apt,
-      ...rawApt,
-      totalPrice: total,
-      remainingAmount: remaining,
-      discountedPrice
-    };
+        const discountedPrice = this.servicesService.calculateDiscountedPrice(service);
+        const total = discountedPrice * rawApt.numberOfPersons;
+        const remaining = Math.max(0, total - rawApt.paidAmount);
 
-    const invoiceNumber = `INV-${apt.id.replace('apt-', '').toUpperCase()}`;
+        const enrichedApt: AppointmentView = {
+          ...apt,
+          ...rawApt,
+          totalPrice: total,
+          remainingAmount: remaining,
+          discountedPrice
+        };
 
-    const dialogData: InvoiceDialogData = {
-      appointment: enrichedApt,
-      invoiceNumber,
-      invoiceDate: rawApt.date,
-      total,
-      paid: rawApt.paidAmount,
-      remaining,
-      currency: service.currency,
-      paymentType: rawApt.paymentType,
-      paymentStatus: rawApt.paymentStatus,
-      locationName: 'Main Branch — Kuwait City'
-    };
+        const dialogData: InvoiceDialogData = {
+          appointment: enrichedApt,
+          invoiceNumber: invoice.InvoiceNumber,      // ✅ real
+          invoiceDate: new Date(invoice.CreatedAt),   // ✅ real
+          total: invoice.TotalAmount,                 // ✅ real
+          paid: invoice.PaidAmount,                   // ✅ real
+          remaining: invoice.RemainingAmount,          // ✅ real
+          currency: invoice.Currency,                  // ✅ real
+          paymentType: invoice.PaymentTypeId,          // ✅ real
+          paymentStatus: invoice.PaymentStatus,        // ✅ real
+          locationName: 'Main Branch — Kuwait City'
+        };
 
-    this.dialog.open(InvoiceDialogComponent, {
-      data: dialogData,
-      width: '900px',
-      maxWidth: '95vw',
-      maxHeight: '92vh',
-      panelClass: 'invoice-dialog-panel',
-      autoFocus: false
+        this.dialog.open(InvoiceDialogComponent, {
+          data: dialogData,
+          width: '900px',
+          maxWidth: '95vw',
+          maxHeight: '92vh',
+          panelClass: 'invoice-dialog-panel',
+          autoFocus: false
+        });
+      },
+      error: (err) => {
+        console.error('Failed to load invoice', err);
+        this.showNotification('Failed to load invoice', 'warn');
+      }
     });
   }
 }

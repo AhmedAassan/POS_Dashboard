@@ -51,9 +51,13 @@ interface WeekDayCell {
             @for (apt of day.appointments.slice(0, maxVisibleChips); track apt.id) {
               <div
                 class="appointment-chip"
-                [style.border-left-color]="apt.service.colorHex"
+                [class.has-client-alert]="apt.client.hasAlert"
+                [style.border-left-color]="apt.client.hasAlert ? '#f59e0b' : apt.service.colorHex"
                 [matTooltip]="chipTooltip(apt)"
                 (click)="onAppointmentClick($event, apt)">
+                @if (apt.client.hasAlert) {
+                  <mat-icon class="chip-alert-icon">warning</mat-icon>
+                }
                 <span class="chip-time">{{ formatTime(apt.startTime) }}</span>
                 <span class="chip-client">{{ apt.client.name }}</span>
                 @if (apt.client.isVIP) {
@@ -343,6 +347,18 @@ interface WeekDayCell {
         background: #94a3b8;
       }
     }
+    .appointment-chip.has-client-alert {
+      background: #fffbeb;
+      border-color: #fcd34d;
+    }
+
+    .chip-alert-icon {
+      font-size: 11px !important;
+      width: 11px !important;
+      height: 11px !important;
+      color: #f59e0b;
+      flex-shrink: 0;
+    }
   `]
 })
 export class CalendarWeekComponent {
@@ -410,7 +426,14 @@ export class CalendarWeekComponent {
   }
 
   chipTooltip(apt: AppointmentView): string {
-    return `${apt.client.name} — ${apt.service.name}\n${this.formatTime(apt.startTime)} – ${this.formatTime(apt.endTime)}\nStaff: ${apt.staff.name}`;
+    let tooltip = `${apt.client.name} — ${apt.service.name}\n${this.formatTime(apt.startTime)} – ${this.formatTime(apt.endTime)}\nStaff: ${apt.staff.name}`;
+    if (apt.client.hasAlert) {
+      tooltip += `\n⚠️ Custom Notification`;
+      if (apt.client.alertNote) {
+        tooltip += `\n📋 ${apt.client.alertNote}`;
+      }
+    }
+    return tooltip;
   }
 
   private isSameDay(a: Date, b: Date): boolean {

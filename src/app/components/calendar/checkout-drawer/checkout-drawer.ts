@@ -77,6 +77,19 @@ interface PaymentMethodOption {
           @case (1) {
             <!-- Customer summary -->
             <section class="section customer-section">
+              <!-- Alert banner -->
+              @if (apt().client.hasAlert) {
+                <div class="checkout-alert-banner">
+                  <mat-icon>warning</mat-icon>
+                  <div class="checkout-alert-content">
+                    <span class="checkout-alert-title">⚠ Custom Notification</span>
+                    @if (apt().client.alertNote) {
+                      <span class="checkout-alert-note">{{ apt().client.alertNote }}</span>
+                    }
+                  </div>
+                </div>
+              }
+
               <div class="customer-card">
                 <div class="customer-avatar" [style.background-color]="apt().staff.color">
                   {{ apt().client.name.charAt(0) }}
@@ -86,6 +99,9 @@ interface PaymentMethodOption {
                     <span class="customer-name">{{ apt().client.name }}</span>
                     @if (apt().client.isVIP) {
                       <span class="vip-badge">⭐ VIP</span>
+                    }
+                    @if (apt().client.isNewCustomer) {
+                      <span class="new-badge-checkout">NEW</span>
                     }
                   </div>
                   <span class="customer-phone">{{ apt().client.phone }}</span>
@@ -1073,6 +1089,60 @@ interface PaymentMethodOption {
       background: #cbd5e1;
       border-radius: 3px;
     }
+
+        /* ===== CLIENT ALERT IN CHECKOUT ===== */
+    .checkout-alert-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      background: linear-gradient(135deg, #fef3c7, #fde68a);
+      border: 1px solid #fbbf24;
+      border-radius: 10px;
+      margin-bottom: 14px;
+      animation: checkoutAlertPulse 3s ease-in-out infinite;
+
+      > mat-icon {
+        font-size: 22px;
+        width: 22px;
+        height: 22px;
+        color: #d97706;
+        flex-shrink: 0;
+      }
+    }
+
+    .checkout-alert-content {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .checkout-alert-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #92400e;
+    }
+
+    .checkout-alert-note {
+      font-size: 12px;
+      color: #78350f;
+      line-height: 1.4;
+    }
+
+    .new-badge-checkout {
+      background: linear-gradient(135deg, #2dd4bf, #0d9488);
+      color: white;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    @keyframes checkoutAlertPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+      50% { box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.2); }
+    }
   `]
 })
 export class CheckoutDrawerComponent {
@@ -1184,13 +1254,14 @@ export class CheckoutDrawerComponent {
 
   setPayPercentage(pct: number): void {
     const remaining = this.liveRemaining();
-    this.payNowAmount.set(Math.round(remaining * pct) / 100);
+    const amount = remaining * (pct / 100);
+    this.payNowAmount.set(Math.round(amount * 100) / 100);
   }
 
   isQuickActive(pct: number): boolean {
     const remaining = this.liveRemaining();
     if (remaining <= 0) return false;
-    const target = Math.round(remaining * pct) / 100;
+    const target = remaining * (pct / 100);
     return Math.abs(this.payNowAmount() - target) < 0.01;
   }
 
@@ -1237,19 +1308,19 @@ export class CheckoutDrawerComponent {
   /** Can proceed from step 1 to step 2 */
   canProceedToSummary = computed(() => {
     const apt = this.apt();
-    // Must have either: some payment made and method chosen, OR fully paid
-    return (apt.paidAmount > 0 && apt.paymentType != null) || apt.remainingAmount <= 0;
+    // Either: payment was applied (paidAmount > 0) with a method selected
+    // Or: nothing left to pay
+    return (apt.paidAmount > 0 && this.selectedPaymentType() !== null)
+        || apt.remainingAmount <= 0;
   });
 
   confirmSale(): void {
-    const aptId = this.apt().id;
-
-    this.appointmentsService.updateAppointment(aptId, {
-      checkoutStatus: 'checked_out',
-      status: 'completed'
-    });
-
-    this.checkoutConfirmed.emit(aptId);
+    const apt = this.apt();
+    this.appointmentsService.checkoutAppointment(
+      apt.id,
+      this.selectedPaymentType() ?? undefined
+    );
+    this.checkoutConfirmed.emit(apt.id);
   }
 
   formatDuration(minutes: number): string {

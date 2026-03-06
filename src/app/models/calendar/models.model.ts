@@ -13,8 +13,12 @@ export interface Client {
   id: string;
   name: string;
   phone: string;
+  phone2?: string;
   email?: string;
   isVIP: boolean;
+  isNewCustomer: boolean;
+  hasAlert: boolean;           // ✅ NEW — Custom notification is ON
+  alertNote?: string;          // ✅ NEW — The notification note text
   totalBookings: number;
   unpaidAmount: number;
   currency: string;
@@ -27,11 +31,12 @@ export interface ServiceItem {
   category: string;
   categoryAr: string;
   appointmentCategoryId: number;
-  duration: number; // in minutes
+  duration: number;
   price: number;
-  discount: number; // percentage (0-100)
-  colorHex: string; // service color for appointment blocks
+  discount: number;
+  colorHex: string;
   currency: string;
+  unitId: number;
 }
 
 /** Where the service is performed */
@@ -41,9 +46,9 @@ export type ServiceType = 'SALON' | 'HOME';
 export type PaymentStatus = 'NONE' | 'DEPOSIT' | 'FULL';
 
 /** Payment method used */
-export type PaymentType = number; // PaymentTypeId from API
+export type PaymentType = number;
 
-/** Checkout workflow status — independent of appointment lifecycle status */
+/** Checkout workflow status */
 export type CheckoutStatus = 'open' | 'checked_out';
 
 /** Calendar view granularity */
@@ -55,51 +60,43 @@ export enum CalendarViewMode {
 
 export interface Appointment {
   id: string;
+  backendId?: number;
+  branchId?: number;
   clientId: string;
   serviceId: string;
   staffId: string;
+  unitId?: number;
+  itemId?: number;
+  customerId?: number;
+  staffBackendId?: number;
   date: Date;
-  startTime: string; // HH:mm format
-  endTime: string;   // HH:mm format
+  startTime: string;
+  endTime: string;
   isOnlineBooking: boolean;
   notes?: string;
-
-  // Lifecycle status
   status: 'scheduled' | 'completed' | 'cancelled' | 'no-show';
-
-  // Checkout workflow status (separate from lifecycle)
   checkoutStatus: CheckoutStatus;
-
-  // Stage 1 additions
-  numberOfPersons: number;   // min 1, default 1
-  serviceType: ServiceType;  // default 'SALON'
-
-  // Payment fields
-  paymentStatus: PaymentStatus;      // default 'NONE'
-  paymentType?: PaymentType;         // required only when paymentStatus !== 'NONE'
-  depositAmount: number;             // meaningful only when paymentStatus === 'DEPOSIT'
-  paidAmount: number;                // running total of payments collected, default 0
+  numberOfPersons: number;
+  serviceType: ServiceType;
+  paymentStatus: PaymentStatus;
+  paymentType?: PaymentType;
+  depositAmount: number;
+  paidAmount: number;
   voucherCode?: string;
+  invoiceId?: number;
+  invoiceNumber?: string;
 }
 
-// Enriched appointment with resolved references for display
 export interface AppointmentView extends Appointment {
   client: Client;
   service: ServiceItem;
   staff: Staff;
-  topPosition: number;    // calculated pixel position from top
-  height: number;         // calculated height in pixels
-
-  // overlap layout (side-by-side)
-  laneIndex: number;      // for side-by-side overlap layout (0-based)
-  laneCount: number;      // total lanes in overlap group
-
+  topPosition: number;
+  height: number;
+  laneIndex: number;
+  laneCount: number;
   discountedPrice: number;
-
-  /** Total price (discounted unit price × numberOfPersons) */
   totalPrice: number;
-
-  /** Remaining amount to be paid (totalPrice − paidAmount, never < 0) */
   remainingAmount: number;
 }
 
@@ -111,15 +108,15 @@ export interface Location {
 }
 
 export interface TimeSlot {
-  time: string;      // HH:mm
-  label: string;     // Display label like "6:00 AM"
-  isHour: boolean;   // true for full hours
+  time: string;
+  label: string;
+  isHour: boolean;
 }
 
 export interface CalendarConfig {
-  startHour: number;      // 6 for 6:00 AM
-  endHour: number;        // 24 for midnight (12:00 AM next day)
-  slotDuration: number;   // minutes per slot (15 or 30)
+  startHour: number;
+  endHour: number;
+  slotDuration: number;
   pixelsPerMinute: number;
 }
 
@@ -135,14 +132,12 @@ export interface CreateAppointmentForm {
   serviceType: ServiceType;
 }
 
-// Time option for dropdowns
 export interface TimeOption {
-  value: string;   // HH:mm format
-  label: string;   // Display format (e.g., "9:00 AM")
+  value: string;
+  label: string;
   disabled?: boolean;
 }
 
-/** Payload for AppointmentsService.applyPayment() */
 export interface ApplyPaymentPayload {
   amount: number;
   paymentType: PaymentType;
@@ -150,10 +145,7 @@ export interface ApplyPaymentPayload {
   voucherCode?: string;
 }
 
-/** Result of getVisibleDateRange() */
 export interface DateRange {
-  /** First visible date (inclusive) */
   start: Date;
-  /** Last visible date (inclusive) */
   end: Date;
 }

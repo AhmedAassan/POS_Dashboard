@@ -67,10 +67,14 @@ interface MonthWeekRow {
                     @for (apt of day.appointments.slice(0, maxVisibleChips); track apt.id) {
                       <div
                         class="month-chip"
-                        [style.background-color]="chipBg(apt.service.colorHex)"
-                        [style.border-left-color]="apt.service.colorHex"
+                        [class.has-client-alert]="apt.client.hasAlert"
+                        [style.background-color]="apt.client.hasAlert ? '#fffbeb' : chipBg(apt.service.colorHex)"
+                        [style.border-left-color]="apt.client.hasAlert ? '#f59e0b' : apt.service.colorHex"
                         [matTooltip]="chipTooltip(apt)"
                         (click)="onAppointmentClick($event, apt)">
+                        @if (apt.client.hasAlert) {
+                          <mat-icon class="month-alert-icon">warning</mat-icon>
+                        }
                         <span class="month-chip-time">{{ formatTimeShort(apt.startTime) }}</span>
                         <span class="month-chip-name">{{ apt.client.name }}</span>
                       </div>
@@ -352,6 +356,18 @@ interface MonthWeekRow {
         background: #94a3b8;
       }
     }
+    .month-chip.has-client-alert {
+      border-left-color: #f59e0b !important;
+      background: #fffbeb !important;
+    }
+
+    .month-alert-icon {
+      font-size: 10px !important;
+      width: 10px !important;
+      height: 10px !important;
+      color: #f59e0b;
+      flex-shrink: 0;
+    }
   `]
 })
 export class CalendarMonthComponent {
@@ -455,7 +471,14 @@ export class CalendarMonthComponent {
   chipTooltip(apt: AppointmentView): string {
     const start = this.formatTimeFull(apt.startTime);
     const end = this.formatTimeFull(apt.endTime);
-    return `${apt.client.name} — ${apt.service.name}\n${start} – ${end}\nStaff: ${apt.staff.name}`;
+    let tooltip = `${apt.client.name} — ${apt.service.name}\n${start} – ${end}\nStaff: ${apt.staff.name}`;
+    if (apt.client.hasAlert) {
+      tooltip += `\n⚠️ Custom Notification`;
+      if (apt.client.alertNote) {
+        tooltip += `\n📋 ${apt.client.alertNote}`;
+      }
+    }
+    return tooltip;
   }
 
   /** Light background from service hex color (~12% opacity) */

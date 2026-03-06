@@ -13,6 +13,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatDialog } from '@angular/material/dialog';
 import { Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged, startWith } from 'rxjs/operators';
 
@@ -20,6 +21,7 @@ import { ClientsService } from '../../../services/calendar/clients';
 import { ServicesService } from '../../../services/calendar/services';
 import { StaffService } from '../../../services/calendar/staff';
 import { AppointmentsService } from '../../../services/calendar/appointments';
+import { BranchesService } from '../../../services/calendar/branches';
 import {
   Client,
   ServiceItem,
@@ -28,6 +30,11 @@ import {
   TimeOption,
   ServiceType
 } from '../../../models/calendar/models.model';
+import {
+  CreateClientDialogComponent,
+  CreateClientDialogData,
+  CreateClientDialogResult
+} from '../create-client-dialog/create-client-dialog';
 
 @Component({
   selector: 'app-appointment-drawer',
@@ -81,32 +88,93 @@ import {
                 [displayWith]="displayClientFn">
                 @for (client of filteredClients(); track client.id) {
                   <mat-option [value]="client">
-                    <div class="client-option">
+                    <div class="client-option" [class.has-alert]="client.hasAlert">
                       <span class="client-name">
+                        @if (client.hasAlert) {
+                          <mat-icon class="client-alert-icon">warning</mat-icon>
+                        }
                         {{ client.name }}
                         @if (client.isVIP) {
                           <span class="vip-chip">VIP</span>
                         }
+                        @if (client.isNewCustomer) {
+                          <span class="new-chip">NEW</span>
+                        }
                       </span>
-                      <span class="client-phone">{{ client.phone }}</span>
+                      <span class="client-phone">
+                        {{ client.phone }}
+                        @if (client.phone2) {
+                          &nbsp;/&nbsp;{{ client.phone2 }}
+                        }
+                      </span>
+                      @if (client.hasAlert && client.alertNote) {
+                        <span class="client-alert-note">
+                          <mat-icon>info</mat-icon>
+                          {{ client.alertNote }}
+                        </span>
+                      }
                     </div>
                   </mat-option>
                 }
               </mat-autocomplete>
             </mat-form-field>
 
-            @if (selectedClient()) {
-              <div class="client-summary">
+            <!-- Create New Client button when no results -->
+            @if (showCreateClientBtn()) {
+              <button
+                mat-stroked-button
+                color="primary"
+                class="create-client-btn"
+                (click)="openCreateClientDialog()">
+                <mat-icon>person_add</mat-icon>
+                Create New Client
+                @if (clientSearchQuery()) {
+                  <span class="create-hint">"{{ clientSearchQuery() }}"</span>
+                }
+              </button>
+            }
+
+             @if (selectedClient()) {
+              <div class="client-summary"
+                   [class.is-new-customer]="selectedClient()!.isNewCustomer"
+                   [class.has-alert]="selectedClient()!.hasAlert">
+                
+                <!-- Alert banner at top of summary -->
+                @if (selectedClient()!.hasAlert) {
+                  <div class="client-alert-banner">
+                    <mat-icon>warning</mat-icon>
+                    <div class="alert-banner-content">
+                      <span class="alert-banner-title">Custom Notification</span>
+                      @if (selectedClient()!.alertNote) {
+                        <span class="alert-banner-note">{{ selectedClient()!.alertNote }}</span>
+                      }
+                    </div>
+                  </div>
+                }
+
                 <div class="summary-header">
                   <span class="client-name">{{ selectedClient()!.name }}</span>
                   @if (selectedClient()!.isVIP) {
                     <span class="vip-badge">⭐ VIP</span>
+                  }
+                  @if (selectedClient()!.isNewCustomer) {
+                    <span class="new-badge">🆕 New Client</span>
                   }
                   <button mat-icon-button (click)="clearClient()" class="clear-btn">
                     <mat-icon>close</mat-icon>
                   </button>
                 </div>
                 <div class="summary-stats">
+                  <div class="stat">
+                    <mat-icon>phone</mat-icon>
+                    <span>{{ selectedClient()!.phone }}</span>
+                  </div>
+                  @if (selectedClient()!.phone2) {
+                    <div class="stat">
+                      <mat-icon>phone_android</mat-icon>
+                      <span>{{ selectedClient()!.phone2 }}</span>
+                    </div>
+                  }
                   <div class="stat">
                     <mat-icon>calendar_today</mat-icon>
                     <span>{{ selectedClient()!.totalBookings }} bookings</span>
@@ -254,7 +322,6 @@ import {
               Date & Time
             </h3>
 
-            <!-- Date picker -->
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Appointment Date</mat-label>
               <input matInput [matDatepicker]="datePicker" formControlName="date">
@@ -312,7 +379,6 @@ import {
               Options
             </h3>
 
-            <!-- Service Type toggle -->
             <div class="option-row">
               <span class="option-label">Service Type</span>
               <mat-button-toggle-group
@@ -330,7 +396,6 @@ import {
               </mat-button-toggle-group>
             </div>
 
-            <!-- Number of Persons -->
             <div class="option-row">
               <span class="option-label">Number of Persons</span>
               <div class="persons-control">
@@ -513,6 +578,7 @@ import {
       width: 100%;
     }
 
+    /* ===== CLIENT OPTION STYLES ===== */
     .client-option {
       display: flex;
       flex-direction: column;
@@ -541,12 +607,61 @@ import {
       border-radius: 4px;
     }
 
+    .new-chip {
+      background: linear-gradient(135deg, #2dd4bf, #0d9488);
+      color: white;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    /* ===== CREATE CLIENT BUTTON ===== */
+    .create-client-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: -8px;
+      margin-bottom: 8px;
+      height: 42px;
+      border-style: dashed;
+      border-color: #93c5fd;
+      color: #2563eb;
+      font-weight: 500;
+      font-size: 13px;
+      transition: all 0.15s ease;
+
+      &:hover {
+        background: #eff6ff;
+        border-color: #3b82f6;
+      }
+
+      .create-hint {
+        font-size: 11px;
+        color: #6b7280;
+        font-weight: 400;
+        margin-left: 4px;
+      }
+    }
+
+    /* ===== CLIENT SUMMARY ===== */
     .client-summary {
       background: #f0fdf4;
       border: 1px solid #bbf7d0;
       border-radius: 8px;
       padding: 12px 16px;
       margin-top: 12px;
+      transition: all 0.2s ease;
+
+      &.is-new-customer {
+        background: linear-gradient(135deg, #f0fdfa, #ccfbf1);
+        border-color: #5eead4;
+        box-shadow: 0 0 0 1px #99f6e4 inset;
+      }
     }
 
     .summary-header {
@@ -562,6 +677,16 @@ import {
       .vip-badge {
         font-size: 12px;
         color: #ca8a04;
+      }
+
+      .new-badge {
+        font-size: 11px;
+        font-weight: 600;
+        color: #0d9488;
+        background: #ccfbf1;
+        border: 1px solid #99f6e4;
+        padding: 2px 8px;
+        border-radius: 10px;
       }
 
       .clear-btn {
@@ -582,6 +707,7 @@ import {
       display: flex;
       gap: 16px;
       margin-top: 8px;
+      flex-wrap: wrap;
 
       .stat {
         display: flex;
@@ -602,6 +728,7 @@ import {
       }
     }
 
+    /* ===== SERVICE OPTION STYLES (unchanged) ===== */
     .service-option-row {
       display: grid;
       grid-template-columns: 4px 1fr 100px;
@@ -875,7 +1002,6 @@ import {
       }
     }
 
-    /* ===== OPTIONS SECTION ===== */
     .option-row {
       display: flex;
       align-items: center;
@@ -944,7 +1070,6 @@ import {
       color: #1f2937;
     }
 
-    /* ===== FOOTER ===== */
     .drawer-footer {
       border-top: 1px solid #e5e7eb;
       padding: 16px 24px;
@@ -1018,6 +1143,89 @@ import {
       background: #cbd5e1;
       border-radius: 3px;
     }
+        /* ===== CLIENT ALERT STYLES ===== */
+    .client-option.has-alert {
+      border-left: 3px solid #f59e0b;
+      padding-left: 8px;
+      background: #fffbeb;
+    }
+
+    .client-alert-icon {
+      font-size: 14px !important;
+      width: 14px !important;
+      height: 14px !important;
+      color: #f59e0b;
+      vertical-align: middle;
+      margin-right: 2px;
+    }
+
+    .client-alert-note {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: #92400e;
+      background: #fef3c7;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-top: 2px;
+
+      mat-icon {
+        font-size: 12px;
+        width: 12px;
+        height: 12px;
+      }
+    }
+
+    .client-summary.has-alert {
+      background: #fffbeb;
+      border-color: #fcd34d;
+      box-shadow: 0 0 0 1px #fde68a inset;
+    }
+
+    .client-alert-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      background: linear-gradient(135deg, #fef3c7, #fde68a);
+      border: 1px solid #fbbf24;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      animation: alertBannerPulse 3s ease-in-out infinite;
+
+      > mat-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+        color: #d97706;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+    }
+
+    .alert-banner-content {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .alert-banner-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #92400e;
+    }
+
+    .alert-banner-note {
+      font-size: 12px;
+      color: #78350f;
+      line-height: 1.4;
+    }
+
+    @keyframes alertBannerPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+      50% { box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.2); }
+    }
   `]
 })
 export class AppointmentDrawerComponent implements OnInit, OnDestroy {
@@ -1026,6 +1234,8 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
   private servicesService = inject(ServicesService);
   private staffService = inject(StaffService);
   private appointmentsService = inject(AppointmentsService);
+  private branchesService = inject(BranchesService);
+  private dialog = inject(MatDialog);
 
   appointmentToEdit = input<AppointmentView | null>(null);
 
@@ -1042,6 +1252,9 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
   filteredClients = signal<Client[]>([]);
   filteredServices = signal<ServiceItem[]>([]);
 
+  /** The raw string the user typed in the client search field */
+  clientSearchQuery = signal<string>('');
+
   staffList = this.staffService.staffList;
   timeOptions = signal<TimeOption[]>([]);
   endTimeOptions = signal<TimeOption[]>([]);
@@ -1051,7 +1264,25 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
 
   isEditMode = computed(() => this.appointmentToEdit() !== null);
 
+  /** Show "Create New Client" button when search has text but no results */
+  showCreateClientBtn = computed(() => {
+    const query = this.clientSearchQuery();
+    const results = this.filteredClients();
+    // Show button when user typed something (at least 2 chars) and got no results
+    return query.length >= 2 && results.length === 0 && !this.selectedClient();
+  });
+
   private subscriptions: Subscription[] = [];
+
+  /** Get the numeric branchId from the header's selected location */
+  private getSelectedBranchId(): number {
+    const branches = this.branchesService.branches();
+    if (branches.length > 0) {
+      // For now, use the first branch. In future, get from header's selectedLocationId
+      return parseInt(branches[0].id.replace('loc-', ''), 10) || 1;
+    }
+    return 1;
+  }
 
   constructor() {
     this.initForm();
@@ -1084,13 +1315,14 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     this.timeOptions.set(this.appointmentsService.generateTimeOptions());
     this.updateEndTimeOptions();
 
-    // Client search (RxJS for valueChanges — allowed per rules)
+    // Client search
     const clientSub = this.form.get('clientSearch')!.valueChanges.pipe(
       startWith(''),
       debounceTime(200),
       distinctUntilChanged()
     ).subscribe(value => {
       if (typeof value === 'string') {
+        this.clientSearchQuery.set(value);
         this.filteredClients.set(this.clientsService.searchClients(value));
       }
     });
@@ -1108,7 +1340,6 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     });
     this.subscriptions.push(serviceSub);
 
-    // Start time changes → update end time options, auto-calc end, validate, conflict
     const startTimeSub = this.form.get('startTime')!.valueChanges.subscribe(() => {
       this.updateEndTimeOptions();
       this.updateEndTimeFromDuration();
@@ -1117,20 +1348,17 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     });
     this.subscriptions.push(startTimeSub);
 
-    // End time changes → validate + conflict
     const endTimeSub = this.form.get('endTime')!.valueChanges.subscribe(() => {
       this.validateTime();
       this.checkConflict();
     });
     this.subscriptions.push(endTimeSub);
 
-    // Staff changes → conflict
     const staffSub = this.form.get('staff')!.valueChanges.subscribe(() => {
       this.checkConflict();
     });
     this.subscriptions.push(staffSub);
 
-    // Date changes → conflict (uses form date, not selectedDate)
     const dateSub = this.form.get('date')!.valueChanges.subscribe(() => {
       this.checkConflict();
     });
@@ -1142,6 +1370,40 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subscriptions.forEach(sub => sub.unsubscribe());
+  }
+
+  /** Open the Create Client dialog */
+  openCreateClientDialog(): void {
+    const query = this.clientSearchQuery();
+
+    // Detect if query looks like a phone number
+    const isPhone = /^\d{4,}$/.test(query.replace(/\s/g, ''));
+
+    const dialogData: CreateClientDialogData = {
+      branchId: this.getSelectedBranchId(),
+      prefillPhone: isPhone ? query : undefined,
+      prefillName: !isPhone ? query : undefined
+    };
+
+    const dialogRef = this.dialog.open(CreateClientDialogComponent, {
+      data: dialogData,
+      width: '480px',
+      maxWidth: '95vw',
+      maxHeight: '90vh',
+      panelClass: 'create-client-dialog-panel',
+      autoFocus: true,
+      disableClose: false
+    });
+
+    dialogRef.afterClosed().subscribe((result: CreateClientDialogResult | null) => {
+      if (result?.client) {
+        // Auto-select the newly created client
+        this.selectedClient.set(result.client);
+        this.form.get('clientSearch')!.setValue(result.client);
+        this.clientSearchQuery.set('');
+        this.filteredClients.set(this.clientsService.clients());
+      }
+    });
   }
 
   private populateFormForEdit(apt: AppointmentView): void {
@@ -1192,6 +1454,7 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
   onClientSelected(event: { option: { value: Client } }): void {
     const client = event.option.value;
     this.selectedClient.set(client);
+    this.clientSearchQuery.set('');
   }
 
   onServiceSelected(event: { option: { value: ServiceItem } }): void {
@@ -1203,6 +1466,7 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
   clearClient(): void {
     this.selectedClient.set(null);
     this.form.get('clientSearch')!.setValue('');
+    this.clientSearchQuery.set('');
   }
 
   clearService(): void {
@@ -1210,14 +1474,12 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     this.form.get('serviceSearch')!.setValue('');
   }
 
-  /** Unit discounted price (single person) */
   unitDiscountedPrice = computed(() => {
     const service = this.selectedService();
     if (!service) return '0.00';
     return this.servicesService.calculateDiscountedPrice(service).toFixed(2);
   });
 
-  /** Total price = unit discounted price × numberOfPersons */
   totalPrice = computed(() => {
     const service = this.selectedService();
     if (!service) return '0.00';
@@ -1239,8 +1501,7 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
       return '0.00';
     }
     const discounted = service.price * (1 - service.discount / 100);
-    const amountOff = service.price - discounted;
-    return amountOff.toFixed(2);
+    return (service.price - discounted).toFixed(2);
   }
 
   incrementPersons(): void {
@@ -1285,9 +1546,6 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * Conflict detection uses the DATE from the form, not the global selectedDate.
-   */
   private checkConflict(): void {
     const staff = this.form.get('staff')?.value as Staff;
     const startTime = this.form.get('startTime')?.value;
@@ -1313,15 +1571,10 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
   }
 
   formatDuration(minutes: number): string {
-    if (minutes < 60) {
-      return `${minutes}min`;
-    }
+    if (minutes < 60) return `${minutes}min`;
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    if (mins === 0) {
-      return `${hours}h`;
-    }
-    return `${hours}h ${mins}min`;
+    return mins === 0 ? `${hours}h` : `${hours}h ${mins}min`;
   }
 
   isFormValid(): boolean {
@@ -1359,6 +1612,7 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
         clientId: client.id,
         serviceId: service.id,
         staffId: staff.id,
+        unitId: service.unitId,
         date,
         startTime,
         endTime,
@@ -1372,6 +1626,8 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
         clientId: client.id,
         serviceId: service.id,
         staffId: staff.id,
+        branchId: this.getSelectedBranchId(),
+        unitId: service.unitId,
         date,
         startTime,
         endTime,
@@ -1423,6 +1679,7 @@ export class AppointmentDrawerComponent implements OnInit, OnDestroy {
     });
     this.selectedClient.set(null);
     this.selectedService.set(null);
+    this.clientSearchQuery.set('');
     this.timeError.set('');
     this.conflictWarning.set('');
   }

@@ -11,10 +11,11 @@ import { AppointmentView } from '../../../models/calendar/models.model';
   standalone: true,
   imports: [CommonModule, MatTooltipModule, MatIconModule],
   template: `
-    <div
+        <div
       class="appointment-block"
       [class.is-hovered]="isHovered()"
       [class.is-checked-out]="appointment().checkoutStatus === 'checked_out'"
+      [class.has-client-alert]="appointment().client.hasAlert"
       [style.top.px]="appointment().topPosition"
       [style.height.px]="appointment().height"
       [style.left]="leftPosition()"
@@ -37,12 +38,23 @@ import { AppointmentView } from '../../../models/calendar/models.model';
       <!-- Service color left bar -->
       <div class="service-bar"></div>
 
+      <!-- Alert indicator bar (overrides service bar when client has alert) -->
+      @if (appointment().client.hasAlert) {
+        <div class="alert-bar"></div>
+      }
+
       <div class="block-content" [class.compact]="isCompact()">
         <!-- Client Name -->
         <div class="client-name">
+          @if (appointment().client.hasAlert) {
+            <mat-icon class="alert-icon">warning</mat-icon>
+          }
           <span class="name-text">{{ appointment().client.name }}</span>
           @if (appointment().client.isVIP) {
             <span class="vip-badge">VIP</span>
+          }
+          @if (appointment().client.isNewCustomer) {
+            <span class="new-badge">NEW</span>
           }
         </div>
 
@@ -87,7 +99,7 @@ import { AppointmentView } from '../../../models/calendar/models.model';
         }
       </div>
 
-      <!-- ✅ Invoice button: OUTSIDE block-content, shows on hover for checked-out -->
+      <!-- Invoice button -->
       @if (appointment().checkoutStatus === 'checked_out' && isHovered()) {
         <button
           class="invoice-float-btn"
@@ -323,6 +335,67 @@ import { AppointmentView } from '../../../models/calendar/models.model';
         }
       }
     }
+    .new-badge {
+      background: linear-gradient(135deg, #2dd4bf, #0d9488);
+      color: white;
+      font-size: 7px;
+      font-weight: 700;
+      padding: 1px 4px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      flex-shrink: 0;
+    }
+    /* ===== CLIENT ALERT STYLES ===== */
+    .appointment-block.has-client-alert {
+      border-left: 4px solid #f59e0b;
+      animation: alertPulse 3s ease-in-out infinite;
+
+      .service-bar {
+        display: none;
+      }
+    }
+
+    .alert-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 4px;
+      background: linear-gradient(180deg, #f59e0b, #ef4444);
+      z-index: 2;
+    }
+
+    .alert-icon {
+      font-size: 12px !important;
+      width: 12px !important;
+      height: 12px !important;
+      color: #f59e0b;
+      flex-shrink: 0;
+      animation: alertIconPulse 2s ease-in-out infinite;
+    }
+
+    .new-badge {
+      background: linear-gradient(135deg, #2dd4bf, #0d9488);
+      color: white;
+      font-size: 7px;
+      font-weight: 700;
+      padding: 1px 4px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      flex-shrink: 0;
+    }
+
+    @keyframes alertPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+      50% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15); }
+    }
+
+    @keyframes alertIconPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
   `]
 })
 export class AppointmentBlockComponent {
@@ -371,7 +444,7 @@ export class AppointmentBlockComponent {
    * Enhanced tooltip with all Stage 5 fields:
    * payment summary, numberOfPersons, serviceType, voucher
    */
-  tooltipContent = computed(() => {
+    tooltipContent = computed(() => {
     const apt = this.appointment();
     const originalPrice = apt.service.price;
     const discountedPrice = apt.discountedPrice;
@@ -383,31 +456,38 @@ export class AppointmentBlockComponent {
     }
 
     const lines: string[] = [
-      `👤 ${apt.client.name}${apt.client.isVIP ? ' ⭐ VIP' : ''}`,
+      `👤 ${apt.client.name}${apt.client.isVIP ? ' ⭐ VIP' : ''}${apt.client.isNewCustomer ? ' 🆕' : ''}`,
       `📞 ${apt.client.phone}`,
-      ``
     ];
+
+    // ✅ Alert info at the top
+    if (apt.client.hasAlert) {
+      lines.push(``);
+      lines.push(`⚠️ CUSTOM NOTIFICATION`);
+      if (apt.client.alertNote) {
+        lines.push(`📋 ${apt.client.alertNote}`);
+      }
+    }
+
+    lines.push(``);
 
     // Service info
     lines.push(`💇 ${apt.service.name}`);
     lines.push(`👩‍💼 ${apt.staff.name}`);
     lines.push(`🕐 ${this.formatTime(apt.startTime)} - ${this.formatTime(apt.endTime)}`);
 
-    // Service type
     if (apt.serviceType === 'HOME') {
       lines.push(`🏠 Home Service`);
     } else {
       lines.push(`💈 Salon Service`);
     }
 
-    // Number of persons
     if (apt.numberOfPersons > 1) {
       lines.push(`👥 ${apt.numberOfPersons} persons`);
     }
 
     lines.push(``);
 
-    // Pricing
     lines.push(`💰 Unit: ${priceText}`);
     if (apt.numberOfPersons > 1) {
       lines.push(`💰 Total: ${apt.service.currency} ${apt.totalPrice.toFixed(2)} (×${apt.numberOfPersons})`);
@@ -415,7 +495,6 @@ export class AppointmentBlockComponent {
       lines.push(`💰 Total: ${apt.service.currency} ${apt.totalPrice.toFixed(2)}`);
     }
 
-    // Payment summary
     lines.push(``);
     const paymentStatusMap: Record<string, string> = {
       'NONE': '⬜ Unpaid',
@@ -434,18 +513,15 @@ export class AppointmentBlockComponent {
       lines.push(`💳 Method: ${apt.paymentType}`);
     }
 
-    // Voucher
     if (apt.voucherCode) {
       lines.push(`🎟️ Voucher: ${apt.voucherCode}`);
     }
 
-    // Checkout status
     if (apt.checkoutStatus === 'checked_out') {
       lines.push(``);
       lines.push(`✅ Checked Out`);
     }
 
-    // Notes
     if (apt.notes) {
       lines.push(``);
       lines.push(`📝 ${apt.notes}`);

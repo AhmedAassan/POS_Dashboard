@@ -438,5 +438,10 @@ export class CalendarHeaderComponent {
       this.appointmentsService.setSelectedDate(event.value);
     }
   }
+  getSelectedBranchId(): number {
+    const id = this.selectedLocationId;
+    if (!id) return 1;
+    return parseInt(id.replace('loc-', ''), 10) || 1;
+  }
 }
 

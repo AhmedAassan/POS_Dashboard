@@ -1,6 +1,7 @@
 // services/appointments.service.ts
 
 import { Injectable, signal, computed, inject } from '@angular/core';
+import { effect } from '@angular/core';
 import {
   Appointment,
   AppointmentView,
@@ -11,11 +12,16 @@ import {
   ApplyPaymentPayload,
   ServiceItem
 } from '../../models/calendar/models.model';
+import { Subject } from 'rxjs';
 import { StaffService } from './staff';
 import { ClientsService } from './clients';
 import { ServicesService } from './services';
+import { NotificationService } from './notification.service';
 import { LookupsHttpService } from './lookups-http.service';
 import { AppointmentCategoriesService } from './appointment-categories.service';
+import { AppointmentsHttpService } from './appointments-http.service';
+import { AppointmentApiDto } from './appointments.api';
+
 @Injectable({
   providedIn: 'root'
 })
@@ -25,6 +31,11 @@ export class AppointmentsService {
   private servicesService = inject(ServicesService);
   private api = inject(LookupsHttpService); 
   private categoriesService = inject(AppointmentCategoriesService);
+  private appointmentsApi = inject(AppointmentsHttpService);
+  private notify = inject(NotificationService);
+  private loadingSignal = signal(false);
+  readonly loading = this.loadingSignal.asReadonly();
+
   // Calendar configuration - easily changeable
 
   private configSignal = signal<CalendarConfig>({
@@ -37,7 +48,7 @@ export class AppointmentsService {
   readonly config = this.configSignal.asReadonly(); 
 
   constructor() {
-    // ✅ new: load settings from API
+    // ✅ existing: load settings from API
     this.api.getAppointmentSettings().subscribe({
       next: (settings) => {
         if (settings) {
@@ -50,128 +61,117 @@ export class AppointmentsService {
       },
       error: (err) => {
         console.error('Failed to load appointment settings', err);
-        // يبقى على القيم الافتراضية
+      }
+    });
+
+    // ✅ NEW: Auto-load appointments whenever date or view mode changes
+    effect(() => {
+      const date = this.selectedDate();
+      const viewMode = this.selectedViewMode();
+      const branchId = 1; // TODO: make this reactive from selected branch
+
+      const range = this.getVisibleDateRange(date, viewMode);
+
+      if (viewMode === CalendarViewMode.DAY) {
+        this.loadAppointments(branchId, range.start);
+      } else {
+        this.loadAppointmentsRange(branchId, range.start, range.end);
       }
     });
   }
-  // Mock appointments data — includes all Stage 1 fields
-  private readonly mockAppointments: Appointment[] = [
-    {
-      id: 'apt-1',
-      clientId: 'client-1',
-      serviceId: 'service-1',
-      staffId: 'staff-2',
-      date: new Date(),
-      startTime: '09:00',
-      endTime: '10:00',
-      isOnlineBooking: true,
-      notes: 'Regular client - prefers organic products',
-      status: 'scheduled',
-      checkoutStatus: 'open',
-      numberOfPersons: 1,
-      serviceType: 'SALON',
-      paymentStatus: 'NONE',
-      depositAmount: 0,
-      paidAmount: 0
-    },
-    {
-      id: 'apt-2',
-      clientId: 'client-2',
-      serviceId: 'service-3',
-      staffId: 'staff-1',
-      date: new Date(),
-      startTime: '10:30',
-      endTime: '12:00',
-      isOnlineBooking: false,
-      status: 'scheduled',
-      checkoutStatus: 'open',
-      numberOfPersons: 1,
-      serviceType: 'SALON',
-      paymentStatus: 'NONE',
-      depositAmount: 0,
-      paidAmount: 0
-    },
-    {
-      id: 'apt-3',
-      clientId: 'client-3',
-      serviceId: 'service-4',
-      staffId: 'staff-3',
-      date: new Date(),
-      startTime: '14:00',
-      endTime: '15:15',
-      isOnlineBooking: true,
-      status: 'scheduled',
-      checkoutStatus: 'open',
-      numberOfPersons: 2,
-      serviceType: 'HOME',
-      paymentStatus: 'DEPOSIT',
-      paymentType: 2,
-      depositAmount: 10,
-      paidAmount: 10
-    },
-    {
-      id: 'apt-4',
-      clientId: 'client-4',
-      serviceId: 'service-2',
-      staffId: 'staff-2',
-      date: new Date(),
-      startTime: '09:30',
-      endTime: '10:15',
-      isOnlineBooking: false,
-      status: 'scheduled',
-      checkoutStatus: 'open',
-      numberOfPersons: 1,
-      serviceType: 'SALON',
-      paymentStatus: 'NONE',
-      depositAmount: 0,
-      paidAmount: 0
-    },
-    {
-      id: 'apt-5',
-      clientId: 'client-5',
-      serviceId: 'service-5',
-      staffId: 'staff-4',
-      date: new Date(),
-      startTime: '09:30',
-      endTime: '10:30',
-      isOnlineBooking: true,
-      status: 'scheduled',
-      checkoutStatus: 'open',
-      numberOfPersons: 1,
-      serviceType: 'SALON',
-      paymentStatus: 'FULL',
-      paymentType: 7,
-      depositAmount: 0,
-      paidAmount: 28
-    },
-    {
-      id: 'apt-6',
-      clientId: 'client-1',
-      serviceId: 'service-6',
-      staffId: 'staff-2',
-      date: new Date(),
-      startTime: '09:15',
-      endTime: '09:30',
-      isOnlineBooking: false,
-      status: 'scheduled',
-      checkoutStatus: 'open',
-      numberOfPersons: 1,
-      serviceType: 'SALON',
-      paymentStatus: 'NONE',
-      depositAmount: 0,
-      paidAmount: 0
-    }
-  ];
+  private mapApiDtoToAppointment(dto: AppointmentApiDto): Appointment {
+    return {
+      id: `apt-${dto.Id}`,
+      backendId: dto.Id,
+      branchId: dto.BranchId,
+      clientId: `client-${dto.CustomerId}`,
+      serviceId: `service-${dto.ItemId}`,
+      staffId: `staff-${dto.StaffId}`,
+      unitId: dto.UnitId,
+      itemId: dto.ItemId,
+      customerId: dto.CustomerId,
+      staffBackendId: dto.StaffId,
+      date: new Date(dto.AppointmentDate),
+      startTime: dto.StartTime,
+      endTime: dto.EndTime,
+      isOnlineBooking: dto.IsOnlineBooking,
+      notes: dto.Notes,
+      status: dto.Status as any,
+      checkoutStatus: dto.CheckoutStatus as any,
+      numberOfPersons: dto.NumberOfPersons,
+      serviceType: dto.ServiceType as any,
+      paymentStatus: dto.PaymentStatus as any,
+      paymentType: undefined,
+      depositAmount: dto.DepositAmount,
+      paidAmount: dto.PaidAmount,
+      voucherCode: dto.VoucherCode,
+      invoiceId: dto.InvoiceId,
+      invoiceNumber: dto.InvoiceNumber
+    };
+  }
+  /** Load appointments from API for a specific branch and date range */
+  loadAppointments(branchId: number, date: Date): void {
+    this.loadingSignal.set(true);
+    const dateStr = this.formatDateForApi(date);
+    
+    this.appointmentsApi.getAll({ branchId, date: dateStr }).subscribe({
+      next: (response) => {
+        const appointments = response.Appointments.map(dto => this.mapApiDtoToAppointment(dto));
+        this.appointmentsSignal.set(appointments);
+        this.loadingSignal.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to load appointments', err);
+        this.loadingSignal.set(false);
+      }
+    });
+  }
 
+  /** Load appointments for a date range (week/month views) */
+  loadAppointmentsRange(branchId: number, dateFrom: Date, dateTo: Date): void {
+    const from = this.formatDateForApi(dateFrom);
+    const to = this.formatDateForApi(dateTo);
+    
+    this.appointmentsApi.getAll({ branchId, dateFrom: from, dateTo: to }).subscribe({
+      next: (response) => {
+        const appointments = response.Appointments.map(dto => this.mapApiDtoToAppointment(dto));
+        this.appointmentsSignal.set(appointments);
+      },
+      error: (err) => {
+        console.error('Failed to load appointments', err);
+      }
+    });
+  }
+
+  private formatDateForApi(date: Date): string {
+    const y = date.getFullYear();
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const d = date.getDate().toString().padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  
+
+  private checkoutResultSubject = new Subject<{
+    appointmentId: string;
+    invoiceNumber: string;
+    invoiceId: number;
+    totalAmount: number;
+    paidAmount: number;
+    remainingAmount: number;
+    currency: string;
+    paymentTypeId?: number;
+    paymentStatus: string;
+  }>();
   // ── Reactive state ──
-  private appointmentsSignal = signal<Appointment[]>(this.mockAppointments);
+  private appointmentsSignal = signal<Appointment[]>([]);
   private selectedDateSignal = signal<Date>(new Date());
   private selectedViewModeSignal = signal<CalendarViewMode>(CalendarViewMode.DAY);
+
 
   readonly appointments = this.appointmentsSignal.asReadonly();
   readonly selectedDate = this.selectedDateSignal.asReadonly();
   readonly selectedViewMode = this.selectedViewModeSignal.asReadonly();
-
+  readonly checkoutResult$ = this.checkoutResultSubject.asObservable();
   // ── Time options ──
 
   generateTimeOptions(): TimeOption[] {
@@ -199,6 +199,42 @@ export class AppointmentsService {
     this.selectedViewModeSignal.set(mode);
   }
 
+  
+   checkoutAppointment(id: string, paymentTypeId?: number): void {
+    const backendId = parseInt(id.replace('apt-', ''), 10);
+
+    this.appointmentsApi.checkout(backendId, { PaymentTypeId: paymentTypeId }).subscribe({
+      next: (response) => {
+        // Update local state
+        this.appointmentsSignal.update(apts =>
+          apts.map(apt => apt.id === id
+            ? {
+                ...apt,
+                checkoutStatus: 'checked_out' as const,
+                status: 'completed' as const,
+                invoiceId: response.Invoice.Id,
+                invoiceNumber: response.Invoice.InvoiceNumber
+              }
+            : apt
+          )
+        );
+
+        // Emit the real invoice data
+        this.checkoutResultSubject.next({
+          appointmentId: id,
+          invoiceNumber: response.Invoice.InvoiceNumber,
+          invoiceId: response.Invoice.Id,
+          totalAmount: response.Invoice.TotalAmount,
+          paidAmount: response.Invoice.PaidAmount,
+          remainingAmount: response.Invoice.RemainingAmount,
+          currency: response.Invoice.Currency,
+          paymentTypeId: response.Invoice.PaymentTypeId ?? undefined,
+          paymentStatus: response.Invoice.PaymentStatus
+        });
+      },
+      error: (err) => console.error('Failed to checkout', err)
+    });
+  }
   /**
    * Compute the visible date range for a given date and view mode.
    * Both start and end are inclusive.
@@ -329,6 +365,16 @@ export class AppointmentsService {
     return this.appointmentsForDate(this.selectedDate());
   });
 
+  readonly appointmentsByDate = computed(() => {
+    const map = new Map<string, Appointment[]>();
+    for (const apt of this.appointments()) {
+      const key = this.formatDateForApi(apt.date);
+      const list = map.get(key) || [];
+      list.push(apt);
+      map.set(key, list);
+    }
+    return map;
+  });
   // ── Pricing helpers ──
 
   computeTotal(serviceOrAppointment: ServiceItem | AppointmentView): number {
@@ -348,41 +394,24 @@ export class AppointmentsService {
   }
 
   applyPayment(appointmentId: string, payload: ApplyPaymentPayload): void {
-    this.appointmentsSignal.update(appointments =>
-      appointments.map(apt => {
-        if (apt.id !== appointmentId) return apt;
+    const backendId = parseInt(appointmentId.replace('apt-', ''), 10);
+    
+    const request = {
+      Amount: payload.amount,
+      PaymentTypeId: payload.paymentType,
+      PaymentAs: payload.as,
+      VoucherCode: payload.voucherCode
+    };
 
-        const service = this.servicesService.getServiceById(apt.serviceId);
-        if (!service) return apt;
-
-        const updatedPaidAmount = apt.paidAmount + payload.amount;
-        const unitPrice = this.servicesService.calculateDiscountedPrice(service);
-        const total = unitPrice * apt.numberOfPersons;
-        const remaining = Math.max(0, total - updatedPaidAmount);
-
-        let newPaymentStatus: 'NONE' | 'DEPOSIT' | 'FULL';
-        if (remaining <= 0) {
-          newPaymentStatus = 'FULL';
-        } else if (updatedPaidAmount > 0) {
-          newPaymentStatus = 'DEPOSIT';
-        } else {
-          newPaymentStatus = 'NONE';
-        }
-
-        const depositAmount = newPaymentStatus === 'DEPOSIT'
-          ? updatedPaidAmount
-          : apt.depositAmount;
-
-        return {
-          ...apt,
-          paidAmount: updatedPaidAmount,
-          paymentType: payload.paymentType,
-          paymentStatus: newPaymentStatus,
-          depositAmount,
-          voucherCode: payload.voucherCode ?? apt.voucherCode
-        };
-      })
-    );
+    this.appointmentsApi.applyPayment(backendId, request).subscribe({
+      next: (dto) => {
+        const updated = this.mapApiDtoToAppointment(dto);
+        this.appointmentsSignal.update(apts =>
+          apts.map(apt => apt.id === appointmentId ? { ...apt, ...updated } : apt)
+        );
+      },
+      error: (err) => console.error('Failed to apply payment', err)
+    });
   }
 
   // ── Enrichment ──
@@ -641,33 +670,109 @@ export class AppointmentsService {
 
   // ── CRUD ──
 
-  createAppointment(data: Omit<Appointment, 'id' | 'status' | 'checkoutStatus'>): Appointment {
-    const newAppointment: Appointment = {
-      ...data,
-      id: `apt-${Date.now()}`,
-      status: 'scheduled',
-      checkoutStatus: 'open',
-      numberOfPersons: data.numberOfPersons ?? 1,
-      serviceType: data.serviceType ?? 'SALON',
-      paymentStatus: data.paymentStatus ?? 'NONE',
-      depositAmount: data.depositAmount ?? 0,
-      paidAmount: data.paidAmount ?? 0
+  createAppointment(data: Omit<Appointment, 'id' | 'status' | 'checkoutStatus'>): void {
+    // Extract backend IDs from the frontend IDs
+    const customerId = parseInt(data.clientId.replace('client-', ''), 10);
+    const itemId = parseInt(data.serviceId.replace('service-', ''), 10);
+    const staffId = parseInt(data.staffId.replace('staff-', ''), 10);
+    
+    const request = {
+      BranchId: data.branchId || 1,
+      CustomerId: customerId,
+      ItemId: itemId,
+      UnitId: data.unitId || 0,
+      StaffId: staffId,
+      AppointmentDate: this.formatDateForApi(data.date),
+      StartTime: data.startTime,
+      EndTime: data.endTime,
+      NumberOfPersons: data.numberOfPersons ?? 1,
+      ServiceType: data.serviceType ?? 'SALON',
+      IsOnlineBooking: data.isOnlineBooking || false,
+      Notes: data.notes
     };
 
-    this.appointmentsSignal.update(appointments => [...appointments, newAppointment]);
-    return newAppointment;
+    this.appointmentsApi.create(request).subscribe({
+      next: (dto) => {
+        const newApt = this.mapApiDtoToAppointment(dto);
+        this.appointmentsSignal.update(apts => [...apts, newApt]);
+      },
+      error: (err) => {
+        console.error('Failed to create appointment', err);
+        this.notify.error('Failed to create appointment. Please try again.');
+      }
+    });
   }
 
   updateAppointment(id: string, updates: Partial<Appointment>): void {
-    this.appointmentsSignal.update(appointments =>
-      appointments.map(apt => apt.id === id ? { ...apt, ...updates } : apt)
-    );
+    const backendId = parseInt(id.replace('apt-', ''), 10);
+    
+    const request: any = {};
+    
+    if (updates.clientId) request.CustomerId = parseInt(updates.clientId.replace('client-', ''), 10);
+    if (updates.serviceId) request.ItemId = parseInt(updates.serviceId.replace('service-', ''), 10);
+    if (updates.staffId) request.StaffId = parseInt(updates.staffId.replace('staff-', ''), 10);
+    if (updates.unitId) request.UnitId = updates.unitId;
+    if (updates.date) request.AppointmentDate = this.formatDateForApi(updates.date);
+    if (updates.startTime) request.StartTime = updates.startTime;
+    if (updates.endTime) request.EndTime = updates.endTime;
+    if (updates.numberOfPersons) request.NumberOfPersons = updates.numberOfPersons;
+    if (updates.serviceType) request.ServiceType = updates.serviceType;
+    if (updates.notes !== undefined) {
+      if (updates.notes) request.Notes = updates.notes;
+      else request.ClearNotes = true;
+    }
+
+    // Status-only update
+    if (updates.status && Object.keys(request).length === 0) {
+      this.appointmentsApi.updateStatus(backendId, { Status: updates.status }).subscribe({
+        next: (dto) => {
+          const updated = this.mapApiDtoToAppointment(dto);
+          this.appointmentsSignal.update(apts =>
+            apts.map(apt => apt.id === id ? { ...apt, ...updated } : apt)
+          );
+        },
+        error: (err) => console.error('Failed to update status', err)
+      });
+      return;
+    }
+
+    // Checkout status update
+    if (updates.checkoutStatus === 'checked_out') {
+      // This is handled by checkout endpoint, just update locally
+      this.appointmentsSignal.update(apts =>
+        apts.map(apt => apt.id === id ? { ...apt, ...updates } : apt)
+      );
+      return;
+    }
+
+    if (Object.keys(request).length === 0) {
+      // Local-only update (e.g., voucherCode)
+      this.appointmentsSignal.update(apts =>
+        apts.map(apt => apt.id === id ? { ...apt, ...updates } : apt)
+      );
+      return;
+    }
+
+    this.appointmentsApi.update(backendId, request).subscribe({
+      next: (dto) => {
+        const updated = this.mapApiDtoToAppointment(dto);
+        this.appointmentsSignal.update(apts =>
+          apts.map(apt => apt.id === id ? { ...apt, ...updated } : apt)
+        );
+      },
+      error: (err) => console.error('Failed to update appointment', err)
+    });
   }
 
   deleteAppointment(id: string): void {
-    this.appointmentsSignal.update(appointments =>
-      appointments.filter(apt => apt.id !== id)
-    );
+    const backendId = parseInt(id.replace('apt-', ''), 10);
+    
+    this.appointmentsApi.delete(backendId).subscribe({
+      next: () => {
+        this.appointmentsSignal.update(apts => apts.filter(apt => apt.id !== id));
+      },
+      error: (err) => console.error('Failed to delete appointment', err)
+    });
   }
 
   getAppointmentById(id: string): Appointment | undefined {
